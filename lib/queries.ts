@@ -31,6 +31,70 @@ export async function ticketCostSummary(ticketId: string): Promise<TicketCost> {
   return { costUsd: decToNumber(agg._sum.costUsd), calls: agg._count._all, tools };
 }
 
+export interface InboxRow {
+  id: string;
+  subject: string;
+  status: string;
+  priority: string;
+  channel: string;
+  updatedAt: Date;
+  customerName: string;
+  customerPlan: string;
+  /** What the agent's last run produced for this ticket. */
+  outcome: "draft" | "sent" | "escalated" | "none";
+  toolCount: number;
+  costUsd: number;
+  lastRunAt: Date | null;
+  hasDraft: boolean;
+}
+
+/**
+ * Inbox rows with the "agent footprint" (cost, tool count, last-run, outcome) derived
+ * per ticket. One findMany + one grouped raw aggregate over LlmCall, joined in JS.
+ */
+export async function inboxRows(): Promise<InboxRow[]> {
+  const [tickets, stats] = await Promise.all([
+    prisma.ticket.findMany({
+      orderBy: { updatedAt: "desc" },
+      include: {
+        customer: { select: { name: true, plan: true } },
+        messages: { select: { role: true, status: true } },
+      },
+    }),
+    prisma.$queryRaw<{ ticketId: string; cost: string; tools: number; lastrun: Date }[]>`
+      SELECT "ticketId",
+             SUM("costUsd") AS cost,
+             COALESCE(SUM(CASE WHEN jsonb_typeof("toolCalls") = 'array'
+                               THEN jsonb_array_length("toolCalls") ELSE 0 END), 0)::int AS tools,
+             MAX("createdAt") AS lastrun
+      FROM "LlmCall" WHERE "ticketId" IS NOT NULL GROUP BY "ticketId"`,
+  ]);
+
+  const byId = new Map(stats.map((s) => [s.ticketId, s]));
+  return tickets.map((t) => {
+    const st = byId.get(t.id);
+    const hasDraft = t.messages.some((m) => m.role === "AI" && m.status === "DRAFT");
+    const hasSent = t.messages.some((m) => m.role === "AI" && m.status === "SENT");
+    const outcome: InboxRow["outcome"] =
+      t.status === "ESCALATED" ? "escalated" : hasDraft ? "draft" : hasSent ? "sent" : "none";
+    return {
+      id: t.id,
+      subject: t.subject,
+      status: t.status,
+      priority: t.priority,
+      channel: t.channel,
+      updatedAt: t.updatedAt,
+      customerName: t.customer.name,
+      customerPlan: t.customer.plan,
+      outcome,
+      toolCount: st?.tools ?? 0,
+      costUsd: decToNumber(st?.cost ?? 0),
+      lastRunAt: st?.lastrun ?? null,
+      hasDraft,
+    };
+  });
+}
+
 export interface SidebarStats {
   openCount: number;
   kbCount: number;

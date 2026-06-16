@@ -1,75 +1,155 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-import {
-  StatusPill,
-  PriorityPill,
-  ChannelTag,
-  PlanTag,
-} from "@/app/_components/Pills";
-import { formatDate } from "@/lib/format";
+import { inboxRows, type InboxRow } from "@/lib/queries";
+import { StatusBadge, PriorityPill, ChannelTag, PlanTag } from "@/app/_components/Pills";
+import { formatUsd, timeAgo } from "@/lib/format";
 
-// Always read fresh — ticket state changes when the agent runs / a draft is approved.
 export const dynamic = "force-dynamic";
 
-export default async function InboxPage() {
-  const tickets = await prisma.ticket.findMany({
-    orderBy: { updatedAt: "desc" },
-    include: {
-      customer: { select: { name: true, plan: true } },
-      _count: { select: { messages: true, llmCalls: true } },
-    },
-  });
+const COLS = "grid-cols-[132px_minmax(0,1fr)_226px_52px]";
+
+const TABS = [
+  { key: "all", label: "All" },
+  { key: "needs-review", label: "Needs review" },
+  { key: "escalated", label: "Escalated" },
+  { key: "resolved", label: "Resolved" },
+] as const;
+
+const OUTCOME: Record<InboxRow["outcome"], { label: string; token: string } | null> = {
+  draft: { label: "Draft ready", token: "open" },
+  sent: { label: "Sent", token: "resolved" },
+  escalated: { label: "Escalated", token: "escal" },
+  none: null,
+};
+
+function matchesFilter(r: InboxRow, filter: string): boolean {
+  if (filter === "needs-review") return r.hasDraft;
+  if (filter === "escalated") return r.status === "ESCALATED";
+  if (filter === "resolved") return r.outcome === "sent";
+  return true;
+}
+
+export default async function InboxPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>;
+}) {
+  const { filter = "all" } = await searchParams;
+  const rows = await inboxRows();
+
+  const counts = {
+    all: rows.length,
+    "needs-review": rows.filter((r) => r.hasDraft).length,
+    escalated: rows.filter((r) => r.status === "ESCALATED").length,
+    resolved: rows.filter((r) => r.outcome === "sent").length,
+  } as Record<string, number>;
+  const openCount = rows.filter((r) => r.status === "OPEN").length;
+  const list = rows.filter((r) => matchesFilter(r, filter));
 
   return (
-    <main>
-      <header className="mb-6 flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Inbox</h1>
-          <p className="text-sm text-neutral-500">
-            {tickets.length} ticket{tickets.length === 1 ? "" : "s"} in the queue
-          </p>
-        </div>
+    <div className="flex h-full flex-col">
+      {/* Header */}
+      <header className="sticky top-0 z-10 flex h-14 flex-none items-center gap-3.5 border-b border-border bg-surface px-6">
+        <h1 className="text-base font-semibold text-ink">Inbox</h1>
+        <span className="font-mono text-[11px] text-muted">{openCount} open</span>
       </header>
 
-      {tickets.length === 0 && (
-        <p className="rounded-xl border border-dashed border-neutral-300 bg-white p-8 text-center text-sm text-neutral-400">
-          No tickets in the queue.
-        </p>
-      )}
-
-      <ul className="space-y-2">
-        {tickets.map((t) => (
-          <li key={t.id}>
+      {/* Filter tabs */}
+      <div className="flex h-[46px] flex-none items-center gap-1 border-b border-border bg-surface px-5">
+        {TABS.map((t) => {
+          const on = filter === t.key;
+          return (
             <Link
-              href={`/tickets/${t.id}`}
-              className="block rounded-xl border border-neutral-200 bg-white p-4 transition hover:border-neutral-300 hover:shadow-sm"
+              key={t.key}
+              href={t.key === "all" ? "/" : `/?filter=${t.key}`}
+              className={`flex h-[30px] items-center gap-2 rounded-[7px] px-3 text-[13px] transition ${
+                on ? "bg-accent-soft font-semibold text-accent-ink" : "text-ink-3 hover:bg-inset"
+              }`}
             >
-              <div className="flex items-start justify-between gap-4">
+              {t.label}
+              <span
+                className={`rounded-[5px] px-1.5 font-mono text-[10.5px] font-semibold text-accent ${
+                  on ? "bg-surface" : "bg-accent-soft"
+                }`}
+              >
+                {counts[t.key] ?? 0}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Column headers */}
+      <div
+        className={`grid ${COLS} flex-none gap-3.5 border-b border-border-2 bg-surface-2 px-6 py-[9px] font-mono text-[9.5px] font-semibold uppercase tracking-[0.06em] text-faint`}
+      >
+        <span>Status</span>
+        <span>Ticket</span>
+        <span>Agent run</span>
+        <span className="text-right">Age</span>
+      </div>
+
+      {/* Rows */}
+      <div>
+        {list.length === 0 && (
+          <p className="px-6 py-16 text-center text-sm text-muted">No tickets in this view.</p>
+        )}
+        {list.map((r) => {
+          const o = OUTCOME[r.outcome];
+          return (
+            <Link
+              key={r.id}
+              href={`/tickets/${r.id}`}
+              className={`grid ${COLS} items-center gap-3.5 border-b border-border-2 px-6 py-[13px] transition hover:bg-inset`}
+            >
+              {/* Status */}
+              <div>
+                <StatusBadge status={r.status} />
+              </div>
+
+              {/* Ticket */}
+              <div className="flex min-w-0 items-center gap-2">
+                {r.hasDraft && <span className="h-1.5 w-1.5 flex-none rounded-full bg-accent" />}
                 <div className="min-w-0">
-                  <p className="truncate font-medium text-neutral-900">{t.subject}</p>
-                  <p className="mt-0.5 flex items-center gap-2 text-sm text-neutral-500">
-                    <span className="truncate">{t.customer.name}</span>
-                    <PlanTag plan={t.customer.plan} />
-                    <span aria-hidden>·</span>
-                    <ChannelTag channel={t.channel} />
+                  <p
+                    className={`truncate text-[13.5px] text-ink ${r.hasDraft ? "font-semibold" : "font-medium"}`}
+                  >
+                    {r.subject}
                   </p>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-2">
-                  <div className="flex items-center gap-2">
-                    <PriorityPill priority={t.priority} />
-                    <StatusPill status={t.status} />
+                  <div className="mt-0.5 flex items-center gap-2">
+                    <span className="text-[12px] text-ink-3">{r.customerName}</span>
+                    <PlanTag plan={r.customerPlan} />
+                    <PriorityPill priority={r.priority} />
+                    <ChannelTag channel={r.channel} />
                   </div>
-                  <p className="flex items-center gap-2 text-xs text-neutral-400">
-                    <span>💬 {t._count.messages}</span>
-                    {t._count.llmCalls > 0 && <span title="agent has run">🤖 ran</span>}
-                    <span>{formatDate(t.updatedAt)}</span>
-                  </p>
                 </div>
               </div>
+
+              {/* Agent run */}
+              <div className="flex min-w-0 items-center gap-2">
+                {o ? (
+                  <span
+                    className="flex-none rounded-md px-2 py-[3px] text-[11px] font-semibold"
+                    style={{ color: `var(--${o.token}-fg)`, background: `var(--${o.token}-bg)` }}
+                  >
+                    {o.label}
+                  </span>
+                ) : (
+                  <span className="font-mono text-[10.5px] text-faint">no run</span>
+                )}
+                {r.toolCount > 0 && (
+                  <span className="font-mono text-[10.5px] text-faint">{r.toolCount} tools</span>
+                )}
+                {r.costUsd > 0 && (
+                  <span className="font-mono text-[10.5px] text-muted">{formatUsd(r.costUsd)}</span>
+                )}
+              </div>
+
+              {/* Age */}
+              <span className="text-right font-mono text-[11px] text-faint">{timeAgo(r.updatedAt)}</span>
             </Link>
-          </li>
-        ))}
-      </ul>
-    </main>
+          );
+        })}
+      </div>
+    </div>
   );
 }

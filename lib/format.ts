@@ -24,6 +24,19 @@ export function formatTokens(n: number): string {
   return n.toLocaleString("en-US");
 }
 
+/** Compact relative age, e.g. "now", "5m", "2h", "3d", "2mo". */
+export function timeAgo(d: Date): string {
+  const s = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+  if (s < 60) return "now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const days = Math.floor(h / 24);
+  if (days < 30) return `${days}d`;
+  return `${Math.floor(days / 30)}mo`;
+}
+
 /** Compact UTC date label, e.g. "Jun 16" (UTC so server/client agree). */
 export function formatDate(d: Date): string {
   return new Intl.DateTimeFormat("en-US", {
