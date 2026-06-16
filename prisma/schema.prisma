@@ -1,0 +1,159 @@
+// Support / ops inbox assistant — single-workspace (NO multi-tenant by design).
+// LlmCall is the observability spine: every model call writes a row here, and the
+// cost dashboard + per-ticket cost readout both read from it.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Core domain
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  plan      Plan     @default(FREE)
+  createdAt DateTime @default(now())
+
+  orders  Order[]
+  tickets Ticket[]
+
+  @@index([email])
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  customerId  String
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  status      OrderStatus @default(PAID)
+  amountUsd   Decimal     @db.Decimal(10, 2)
+  description String
+  createdAt   DateTime    @default(now())
+
+  @@index([customerId])
+  @@index([status])
+}
+
+model Ticket {
+  id         String         @id @default(cuid())
+  customerId String
+  customer   Customer       @relation(fields: [customerId], references: [id])
+  subject    String
+  status     TicketStatus   @default(OPEN)
+  priority   TicketPriority @default(MEDIUM)
+  channel    Channel        @default(EMAIL)
+  tags       String[]       @default([])
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  messages Message[]
+  llmCalls LlmCall[]
+
+  @@index([customerId])
+  @@index([status])
+}
+
+model Message {
+  id        String        @id @default(cuid())
+  ticketId  String
+  ticket    Ticket        @relation(fields: [ticketId], references: [id])
+  role      MessageRole
+  body      String
+  // AI-authored replies land as DRAFT and only flip to SENT on human approval (HITL).
+  status    MessageStatus @default(SENT)
+  createdAt DateTime      @default(now())
+
+  @@index([ticketId])
+}
+
+model KbArticle {
+  id        String   @id @default(cuid())
+  title     String
+  slug      String   @unique
+  body      String
+  tags      String[] @default([])
+  createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Observability spine — one row per model call. Do not let a call happen
+// without writing one of these.
+// ---------------------------------------------------------------------------
+
+model LlmCall {
+  id           String   @id @default(cuid())
+  ticketId     String?
+  ticket       Ticket?  @relation(fields: [ticketId], references: [id])
+  model        String
+  inputTokens  Int
+  outputTokens Int
+  // cacheReadTokens / cacheWriteTokens are optional but cheap to capture and make
+  // the cost story richer if you use prompt caching.
+  cacheReadTokens  Int?
+  cacheWriteTokens Int?
+  costUsd      Decimal  @db.Decimal(10, 6)
+  latencyMs    Int
+  // The tool_use blocks the model emitted on this turn, as JSON, so the dashboard
+  // can show "4 model calls, 6 tool calls" without reconstructing it.
+  toolCalls    Json?
+  createdAt    DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum OrderStatus {
+  PAID
+  REFUNDED
+  PENDING
+  FAILED
+}
+
+enum TicketStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  ESCALATED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum Channel {
+  EMAIL
+  CHAT
+  WHATSAPP
+  WEB
+}
+
+enum MessageRole {
+  CUSTOMER
+  AGENT // human support agent
+  AI    // the assistant
+}
+
+enum MessageStatus {
+  DRAFT // staged by the agent, awaiting human approval
+  SENT
+}
