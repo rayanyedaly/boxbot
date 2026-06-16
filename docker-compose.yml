@@ -1,0 +1,26 @@
+# Local Postgres for development. Matches the DATABASE_URL in .env.example.
+# Bring up:  docker compose up -d
+# Tear down: docker compose down       (add -v to also drop the data volume)
+services:
+  db:
+    image: postgres:16
+    container_name: inbox-agent-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: inbox
+      POSTGRES_PASSWORD: inbox
+      POSTGRES_DB: inbox
+    ports:
+      # Host port is configurable (DB_PORT) so it won't clash with a Postgres
+      # already running on 5432. Defaults to 5432. Container side stays 5432.
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - inbox_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inbox -d inbox"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  inbox_pgdata:
