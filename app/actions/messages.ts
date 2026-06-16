@@ -13,8 +13,10 @@ export async function approveMessage(
   messageId: string,
   ticketId: string,
 ): Promise<void> {
-  await prisma.message.update({
-    where: { id: messageId },
+  // Scope the transition so only an AI DRAFT on this ticket can flip to SENT — a
+  // data-integrity guard (updateMany is a clean no-op on re-approve, never a throw).
+  await prisma.message.updateMany({
+    where: { id: messageId, ticketId, role: "AI", status: "DRAFT" },
     data: { status: "SENT" },
   });
   revalidatePath(`/tickets/${ticketId}`);

@@ -51,14 +51,6 @@ export function ChannelTag({ channel }: { channel: string }) {
   );
 }
 
-export function MessageStatusPill({ status }: { status: string }) {
-  return status === "DRAFT" ? (
-    <Pill label="DRAFT" className="bg-violet-50 text-violet-700 ring-violet-600/30" />
-  ) : (
-    <Pill label="SENT" className="bg-emerald-50 text-emerald-700 ring-emerald-600/20" />
-  );
-}
-
 export function PlanTag({ plan }: { plan: string }) {
   const styles: Record<string, string> = {
     FREE: "text-neutral-500",

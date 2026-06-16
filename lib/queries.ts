@@ -4,9 +4,8 @@
 // the page components so the per-ticket readout and the dashboard share one source
 // of truth. All Decimal values are converted to number here (server side).
 
-import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
-import { decToNumber, utcDay } from "./format";
+import { decToNumber } from "./format";
 
 export interface TicketCost {
   costUsd: number;
@@ -62,8 +61,12 @@ export async function dashboardStats(): Promise<DashboardStats> {
       distinct: ["ticketId"],
     }),
     prisma.ticket.count(),
-    prisma.$queryRaw<{ day: Date; spend: Prisma.Decimal }[]>`
-      SELECT date_trunc('day', "createdAt") AS day, SUM("costUsd") AS spend
+    // Bucket + format the day in SQL (to_char) so the label is UTC-deterministic and
+    // doesn't depend on the Node server's TZ when a timestamp round-trips through Date.
+    // SUM(numeric) comes back as a string from the pg driver — decToNumber handles it.
+    prisma.$queryRaw<{ day: string; spend: string }[]>`
+      SELECT to_char(date_trunc('day', "createdAt"), 'YYYY-MM-DD') AS day,
+             SUM("costUsd") AS spend
       FROM "LlmCall" GROUP BY day ORDER BY day`,
   ]);
 
@@ -88,6 +91,6 @@ export async function dashboardStats(): Promise<DashboardStats> {
     totalTickets,
     resolvedCount: resolvedIds.length,
     avgCostPerResolved: resolvedIds.length ? resolvedCost / resolvedIds.length : 0,
-    spendByDay: spendRows.map((r) => ({ day: utcDay(r.day), spend: decToNumber(r.spend) })),
+    spendByDay: spendRows.map((r) => ({ day: r.day, spend: decToNumber(r.spend) })),
   };
 }

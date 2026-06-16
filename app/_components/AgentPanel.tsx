@@ -1,7 +1,7 @@
 // app/_components/AgentPanel.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { AgentEvent } from "@/lib/agent/loop";
 import { AgentEventRow } from "./AgentEventRow";
@@ -17,29 +17,45 @@ type DoneSummary = {
   hitIterationCap: boolean;
 };
 type StreamMsg = AgentEvent | DoneSummary | { type: "error"; message: string };
+type Entry = { id: number; event: AgentEvent };
 
 export function AgentPanel({ ticketId }: { ticketId: string }) {
   const router = useRouter();
   const [running, setRunning] = useState(false);
-  const [entries, setEntries] = useState<AgentEvent[]>([]);
+  const [entries, setEntries] = useState<Entry[]>([]);
   const [summary, setSummary] = useState<DoneSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const idRef = useRef(0);
 
   function handle(msg: StreamMsg) {
     if (msg.type === "done") return setSummary(msg);
     if (msg.type === "error") return setError(msg.message);
-    // Streaming AgentEvent — merge consecutive text deltas into one growing entry.
+    // Streaming AgentEvent — merge consecutive text deltas into one growing entry
+    // (keeping its stable id so React reconciles in place).
     setEntries((prev) => {
       if (msg.type === "text") {
         const last = prev[prev.length - 1];
-        if (last && last.type === "text") {
+        if (last && last.event.type === "text") {
           const merged = prev.slice();
-          merged[merged.length - 1] = { type: "text", text: last.text + msg.text };
+          merged[merged.length - 1] = {
+            id: last.id,
+            event: { type: "text", text: last.event.text + msg.text },
+          };
           return merged;
         }
       }
-      return [...prev, msg];
+      return [...prev, { id: idRef.current++, event: msg }];
     });
+  }
+
+  function parseLine(line: string) {
+    const s = line.trim();
+    if (!s) return;
+    try {
+      handle(JSON.parse(s) as StreamMsg);
+    } catch {
+      // Skip one unparseable line rather than failing an otherwise-successful run.
+    }
   }
 
   async function run() {
@@ -51,6 +67,7 @@ export function AgentPanel({ ticketId }: { ticketId: string }) {
     setEntries([]);
     setSummary(null);
     setError(null);
+    idRef.current = 0;
     try {
       const res = await fetch(`/api/tickets/${ticketId}/run`, { method: "POST" });
       if (!res.ok || !res.body) throw new Error(`run failed (HTTP ${res.status})`);
@@ -63,11 +80,9 @@ export function AgentPanel({ ticketId }: { ticketId: string }) {
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (line.trim()) handle(JSON.parse(line) as StreamMsg);
-        }
+        for (const line of lines) parseLine(line);
       }
-      if (buffer.trim()) handle(JSON.parse(buffer) as StreamMsg);
+      parseLine(buffer);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -96,7 +111,10 @@ export function AgentPanel({ ticketId }: { ticketId: string }) {
         >
           {running ? (
             <>
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              <span
+                className="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                aria-hidden
+              />
               Running…
             </>
           ) : (
@@ -106,16 +124,19 @@ export function AgentPanel({ ticketId }: { ticketId: string }) {
       </div>
 
       {hasOutput && (
-        <div className="mt-4 max-h-96 space-y-2 overflow-y-auto rounded-lg bg-neutral-50 p-4">
-          {entries.map((e, i) => (
-            <AgentEventRow key={i} event={e} />
+        <div
+          role="status"
+          aria-live="polite"
+          aria-busy={running}
+          className="mt-4 max-h-96 space-y-2 overflow-y-auto rounded-lg bg-neutral-50 p-4"
+        >
+          {entries.map((e) => (
+            <AgentEventRow key={e.id} event={e.event} />
           ))}
           {running && entries.length === 0 && (
             <p className="text-xs text-neutral-400">Starting run…</p>
           )}
-          {error && (
-            <p className="font-mono text-xs text-rose-600">⚠ {error}</p>
-          )}
+          {error && <p className="font-mono text-xs text-rose-600">⚠ {error}</p>}
           {summary && (
             <div className="mt-2 border-t border-neutral-200 pt-2 text-xs text-neutral-600">
               <span className="font-semibold text-neutral-900">

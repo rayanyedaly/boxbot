@@ -31,6 +31,12 @@ export default async function InboxPage() {
         </div>
       </header>
 
+      {tickets.length === 0 && (
+        <p className="rounded-xl border border-dashed border-neutral-300 bg-white p-8 text-center text-sm text-neutral-400">
+          No tickets in the queue.
+        </p>
+      )}
+
       <ul className="space-y-2">
         {tickets.map((t) => (
           <li key={t.id}>

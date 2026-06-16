@@ -65,7 +65,7 @@ export default async function TicketPage({
         </div>
       </header>
 
-      <section className="space-y-3">
+      <section aria-label="Conversation" className="space-y-3">
         {ticket.messages.map((m) => (
           <MessageBubble
             key={m.id}

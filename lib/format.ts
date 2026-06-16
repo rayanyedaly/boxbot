@@ -32,8 +32,3 @@ export function formatDate(d: Date): string {
     timeZone: "UTC",
   }).format(d);
 }
-
-/** YYYY-MM-DD in UTC — used to key spend-per-day buckets. */
-export function utcDay(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
