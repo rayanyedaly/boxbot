@@ -188,6 +188,84 @@ export async function inboxRows(): Promise<InboxRow[]> {
   });
 }
 
+// --- Knowledge base ---------------------------------------------------------
+
+export interface KbListItem {
+  slug: string;
+  title: string;
+  cites: number;
+}
+export interface KbGroup {
+  category: string;
+  items: KbListItem[];
+}
+
+/**
+ * Per-article citation counts, derived (no stored link): scan each ticket's
+ * search_knowledge_base queries, resolve them to articles, and tally distinct
+ * tickets per article. Best-effort / approximate — fine at this scale.
+ */
+async function kbCitationCounts(): Promise<Map<string, number>> {
+  const calls = await prisma.llmCall.findMany({
+    where: { ticketId: { not: null } },
+    select: { ticketId: true, toolCalls: true },
+  });
+  const pairs: { ticketId: string; query: string }[] = [];
+  for (const c of calls) {
+    if (!c.ticketId || !Array.isArray(c.toolCalls)) continue;
+    for (const t of c.toolCalls as { name?: string; input?: { query?: unknown } }[]) {
+      if (t?.name === "search_knowledge_base" && typeof t.input?.query === "string") {
+        pairs.push({ ticketId: c.ticketId, query: t.input.query.trim().toLowerCase() });
+      }
+    }
+  }
+  const queryToSlugs = new Map<string, string[]>();
+  for (const q of new Set(pairs.map((p) => p.query))) {
+    if (!q) continue;
+    const arts = await prisma.kbArticle.findMany({
+      where: {
+        OR: [
+          { title: { contains: q, mode: "insensitive" } },
+          { body: { contains: q, mode: "insensitive" } },
+          { tags: { has: q } },
+        ],
+      },
+      select: { slug: true },
+      take: 6,
+    });
+    queryToSlugs.set(q, arts.map((a) => a.slug));
+  }
+  const slugTickets = new Map<string, Set<string>>();
+  for (const p of pairs) {
+    for (const slug of queryToSlugs.get(p.query) ?? []) {
+      (slugTickets.get(slug) ?? slugTickets.set(slug, new Set()).get(slug)!).add(p.ticketId);
+    }
+  }
+  return new Map([...slugTickets].map(([slug, set]) => [slug, set.size]));
+}
+
+/** All KB articles grouped by their first tag (the "category"), with cite counts. */
+export async function kbList(): Promise<KbGroup[]> {
+  const [articles, cites] = await Promise.all([
+    prisma.kbArticle.findMany({ orderBy: { title: "asc" }, select: { slug: true, title: true, tags: true } }),
+    kbCitationCounts(),
+  ]);
+  const groups = new Map<string, KbListItem[]>();
+  for (const a of articles) {
+    const category = (a.tags[0] ?? "general").toUpperCase();
+    const item = { slug: a.slug, title: a.title, cites: cites.get(a.slug) ?? 0 };
+    (groups.get(category) ?? groups.set(category, []).get(category)!).push(item);
+  }
+  return [...groups].map(([category, items]) => ({ category, items }));
+}
+
+export async function kbArticle(slug: string) {
+  const article = await prisma.kbArticle.findUnique({ where: { slug } });
+  if (!article) return null;
+  const cites = (await kbCitationCounts()).get(slug) ?? 0;
+  return { ...article, cites };
+}
+
 export interface SidebarStats {
   openCount: number;
   kbCount: number;
