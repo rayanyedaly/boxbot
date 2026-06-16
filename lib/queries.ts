@@ -31,6 +31,99 @@ export async function ticketCostSummary(ticketId: string): Promise<TicketCost> {
   return { costUsd: decToNumber(agg._sum.costUsd), calls: agg._count._all, tools };
 }
 
+const SUMMARY_MODEL = process.env.ANTHROPIC_SUMMARY_MODEL ?? "claude-haiku-4-5";
+
+export interface TraceStep {
+  index: number;
+  kind: "tool" | "compaction";
+  name: string;
+  detail: string;
+}
+export interface TicketTrace {
+  steps: TraceStep[];
+  costUsd: number;
+  latencyMs: number;
+  modelCalls: number;
+  toolCalls: number;
+  /** KB articles the agent consulted during the run (derived from its search calls). */
+  citations: { slug: string; title: string }[];
+  hasRun: boolean;
+}
+
+/**
+ * Reconstruct a ticket's agent run as a tool-chain trace from the logged LlmCall rows
+ * (no per-run table needed). Compaction steps are the summarizer-model calls. Citations
+ * are derived by re-resolving each search_knowledge_base query against the KB.
+ */
+export async function ticketTrace(ticketId: string): Promise<TicketTrace> {
+  const calls = await prisma.llmCall.findMany({
+    where: { ticketId },
+    orderBy: { createdAt: "asc" },
+    select: { model: true, latencyMs: true, costUsd: true, toolCalls: true },
+  });
+
+  const steps: TraceStep[] = [];
+  const kbQueries: string[] = [];
+  let toolCalls = 0;
+  let latencyMs = 0;
+  let costUsd = 0;
+  let idx = 0;
+
+  for (const c of calls) {
+    latencyMs += c.latencyMs;
+    costUsd += decToNumber(c.costUsd);
+    if (c.model === SUMMARY_MODEL) {
+      steps.push({ index: ++idx, kind: "compaction", name: "Context compacted", detail: "older turns summarized" });
+      continue;
+    }
+    if (Array.isArray(c.toolCalls)) {
+      for (const t of c.toolCalls as { name?: string; input?: Record<string, unknown> }[]) {
+        if (!t?.name) continue;
+        toolCalls++;
+        steps.push({ index: ++idx, kind: "tool", name: t.name, detail: traceDetail(t.input) });
+        if (t.name === "search_knowledge_base" && typeof t.input?.query === "string") {
+          kbQueries.push(t.input.query);
+        }
+      }
+    }
+  }
+
+  return {
+    steps,
+    costUsd: Math.round(costUsd * 1e6) / 1e6,
+    latencyMs,
+    modelCalls: calls.length,
+    toolCalls,
+    citations: await resolveKbCitations(kbQueries),
+    hasRun: calls.length > 0,
+  };
+}
+
+function traceDetail(input: unknown): string {
+  if (!input || typeof input !== "object") return "";
+  const o = input as Record<string, unknown>;
+  const v = o.query ?? o.customerId ?? o.ticketId ?? o.status ?? o.team ?? o.reason;
+  return v == null ? "" : String(v);
+}
+
+async function resolveKbCitations(queries: string[]): Promise<{ slug: string; title: string }[]> {
+  const uniq = [...new Set(queries.map((q) => q.trim()).filter(Boolean))];
+  if (uniq.length === 0) return [];
+  const articles = await prisma.kbArticle.findMany({
+    where: {
+      OR: uniq.flatMap((q) => [
+        { title: { contains: q, mode: "insensitive" as const } },
+        { body: { contains: q, mode: "insensitive" as const } },
+        { tags: { has: q.toLowerCase() } },
+      ]),
+    },
+    select: { slug: true, title: true },
+    take: 6,
+  });
+  const seen = new Set<string>();
+  return articles.filter((a) => !seen.has(a.slug) && seen.add(a.slug));
+}
+
 export interface InboxRow {
   id: string;
   subject: string;

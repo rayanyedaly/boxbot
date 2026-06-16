@@ -24,6 +24,22 @@ export function formatTokens(n: number): string {
   return n.toLocaleString("en-US");
 }
 
+/** Up-to-two-letter initials from a name. */
+export function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+/** Deterministic pastel avatar colors from a name (stable across renders/themes). */
+export function avatarColors(name: string): { bg: string; fg: string } {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
+  return { bg: `hsl(${h} 60% 92%)`, fg: `hsl(${h} 55% 38%)` };
+}
+
 /** Compact relative age, e.g. "now", "5m", "2h", "3d", "2mo". */
 export function timeAgo(d: Date): string {
   const s = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
