@@ -4,8 +4,9 @@
 // the page components so the per-ticket readout and the dashboard share one source
 // of truth. All Decimal values are converted to number here (server side).
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
-import { decToNumber } from "./format";
+import { decToNumber, utcDay } from "./format";
 
 export interface TicketCost {
   costUsd: number;
@@ -29,4 +30,64 @@ export async function ticketCostSummary(ticketId: string): Promise<TicketCost> {
     0,
   );
   return { costUsd: decToNumber(agg._sum.costUsd), calls: agg._count._all, tools };
+}
+
+export interface DashboardStats {
+  totalSpend: number;
+  totalCalls: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  totalTickets: number;
+  resolvedCount: number;
+  avgCostPerResolved: number;
+  spendByDay: { day: string; spend: number }[];
+}
+
+/**
+ * Whole-workspace cost stats for the dashboard. "Resolved" = a ticket that has an
+ * approved (SENT) AI message — i.e. a human accepted the agent's draft. Avg cost per
+ * resolved aggregates spend over the SET of resolved ticket ids (never total/count,
+ * which would fold in unresolved tickets and ticketId-null calls).
+ */
+export async function dashboardStats(): Promise<DashboardStats> {
+  const [totals, tokens, resolvedRows, totalTickets, spendRows] = await Promise.all([
+    prisma.llmCall.aggregate({ _sum: { costUsd: true }, _count: { _all: true } }),
+    prisma.llmCall.aggregate({
+      _sum: { inputTokens: true, outputTokens: true, cacheReadTokens: true },
+    }),
+    prisma.message.findMany({
+      where: { role: "AI", status: "SENT" },
+      select: { ticketId: true },
+      distinct: ["ticketId"],
+    }),
+    prisma.ticket.count(),
+    prisma.$queryRaw<{ day: Date; spend: Prisma.Decimal }[]>`
+      SELECT date_trunc('day', "createdAt") AS day, SUM("costUsd") AS spend
+      FROM "LlmCall" GROUP BY day ORDER BY day`,
+  ]);
+
+  const resolvedIds = resolvedRows.map((r) => r.ticketId);
+  const resolvedCost = resolvedIds.length
+    ? decToNumber(
+        (
+          await prisma.llmCall.aggregate({
+            where: { ticketId: { in: resolvedIds } },
+            _sum: { costUsd: true },
+          })
+        )._sum.costUsd,
+      )
+    : 0;
+
+  return {
+    totalSpend: decToNumber(totals._sum.costUsd),
+    totalCalls: totals._count._all,
+    inputTokens: tokens._sum.inputTokens ?? 0,
+    outputTokens: tokens._sum.outputTokens ?? 0,
+    cacheReadTokens: tokens._sum.cacheReadTokens ?? 0,
+    totalTickets,
+    resolvedCount: resolvedIds.length,
+    avgCostPerResolved: resolvedIds.length ? resolvedCost / resolvedIds.length : 0,
+    spendByDay: spendRows.map((r) => ({ day: utcDay(r.day), spend: decToNumber(r.spend) })),
+  };
 }
