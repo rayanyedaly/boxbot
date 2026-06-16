@@ -11,6 +11,7 @@ import {
 import { CostReadout } from "@/app/_components/CostReadout";
 import { MessageBubble } from "@/app/_components/MessageBubble";
 import { ApproveButton } from "@/app/_components/ApproveButton";
+import { AgentPanel } from "@/app/_components/AgentPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -80,7 +81,7 @@ export default async function TicketPage({
         ))}
       </section>
 
-      {/* Agent panel (Run agent + live tool-chain stream) mounts here in the next commit. */}
+      <AgentPanel ticketId={ticket.id} />
     </main>
   );
 }
