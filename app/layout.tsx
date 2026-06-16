@@ -1,12 +1,30 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Schibsted_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { Sidebar } from "@/app/_components/Sidebar";
+
+const sans = Schibsted_Grotesk({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-schibsted",
+  display: "swap",
+});
+
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-jetbrains",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "Support Inbox Agent",
+  title: "BoxBot — Inbox Agent",
   description:
-    "Single-workspace support / ops inbox assistant — an AI agent stages replies a human approves.",
+    "Support / ops inbox assistant — an AI agent chains tools and stages replies a human approves.",
 };
+
+// Set the theme on <html> before paint so there's no light/dark flash on load.
+const noFlash = `(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='light';}})();`;
 
 export default function RootLayout({
   children,
@@ -14,24 +32,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-neutral-50 text-neutral-900 antialiased">
-        <nav className="sticky top-0 z-10 border-b border-neutral-200 bg-white/80 backdrop-blur">
-          <div className="mx-auto flex max-w-5xl items-center gap-6 px-6 py-3">
-            <Link href="/" className="flex items-center gap-2 font-semibold">
-              <span aria-hidden>📨</span> Support Inbox Agent
-            </Link>
-            <div className="ml-auto flex items-center gap-5 text-sm text-neutral-600">
-              <Link href="/" className="hover:text-neutral-900">
-                Inbox
-              </Link>
-              <Link href="/dashboard" className="hover:text-neutral-900">
-                Dashboard
-              </Link>
-            </div>
-          </div>
-        </nav>
-        <div className="mx-auto max-w-5xl px-6 py-8">{children}</div>
+    <html
+      lang="en"
+      className={`${sans.variable} ${mono.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: noFlash }} />
+      </head>
+      <body className="h-screen overflow-hidden">
+        <div className="flex h-full">
+          <Sidebar />
+          <main className="h-full min-w-0 flex-1 overflow-y-auto">{children}</main>
+        </div>
       </body>
     </html>
   );

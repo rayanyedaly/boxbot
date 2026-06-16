@@ -31,6 +31,34 @@ export async function ticketCostSummary(ticketId: string): Promise<TicketCost> {
   return { costUsd: decToNumber(agg._sum.costUsd), calls: agg._count._all, tools };
 }
 
+export interface SidebarStats {
+  openCount: number;
+  kbCount: number;
+  todaySpend: number;
+  todayCalls: number;
+}
+
+/** Ambient sidebar figures: open-ticket count, KB article count, today's spend. */
+export async function sidebarStats(): Promise<SidebarStats> {
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const [openCount, kbCount, today] = await Promise.all([
+    prisma.ticket.count({ where: { status: "OPEN" } }),
+    prisma.kbArticle.count(),
+    prisma.llmCall.aggregate({
+      where: { createdAt: { gte: startOfDay } },
+      _sum: { costUsd: true },
+      _count: { _all: true },
+    }),
+  ]);
+  return {
+    openCount,
+    kbCount,
+    todaySpend: decToNumber(today._sum.costUsd),
+    todayCalls: today._count._all,
+  };
+}
+
 export interface DashboardStats {
   totalSpend: number;
   totalCalls: number;
