@@ -1,0 +1,26 @@
+# Build/runtime artifacts (regenerated inside the image)
+node_modules
+.next
+out
+build
+
+# Infra is a separate artifact — never part of the app image build context
+infra
+
+# Secrets — the container gets config from the orchestrator, never a baked .env
+.env
+.env.*
+
+# Dev-only / not needed at runtime
+.git
+.github
+.vscode
+.idea
+tests
+docs
+*.log
+npm-debug.log*
+
+# Don't recurse the build files into their own context
+Dockerfile
+.dockerignore

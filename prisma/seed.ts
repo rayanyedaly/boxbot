@@ -23,6 +23,17 @@ const NOW = new Date("2026-06-16T12:00:00.000Z");
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 86_400_000);
 
 async function main() {
+  // Container boot (SEED_ON_START) sets SEED_SKIP_IF_POPULATED so the seed is a
+  // no-op when data already exists — a task restart must never wipe a populated
+  // DB. Local `npm run db:seed` (no flag) keeps the clean-slate reseed below.
+  if (process.env.SEED_SKIP_IF_POPULATED === "true") {
+    const existing = await prisma.customer.count();
+    if (existing > 0) {
+      console.log(`[seed] ${existing} customers already present — skipping seed.`);
+      return;
+    }
+  }
+
   // --- Clean slate (delete in FK-safe order) ------------------------------
   await prisma.llmCall.deleteMany();
   await prisma.message.deleteMany();
