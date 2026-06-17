@@ -136,17 +136,20 @@ export async function maybeCompact(args: {
   });
 
   // Persist the compaction event so the dashboard can show real savings (the one
-  // additive observability write — loop logic is otherwise unchanged).
-  await prisma.compaction.create({
-    data: {
-      ticketId: ticketId ?? null,
-      tokensBefore: before.input_tokens,
-      tokensAfter: after.input_tokens,
-      tokensSaved: before.input_tokens - after.input_tokens,
-      costUsd: summaryCostUsd,
-      model: SUMMARY_MODEL,
-    },
-  });
+  // additive observability write — loop logic is otherwise unchanged). Best-effort:
+  // a failure here must never abort an otherwise-successful run.
+  await prisma.compaction
+    .create({
+      data: {
+        ticketId: ticketId ?? null,
+        tokensBefore: before.input_tokens,
+        tokensAfter: after.input_tokens,
+        tokensSaved: before.input_tokens - after.input_tokens,
+        costUsd: summaryCostUsd,
+        model: SUMMARY_MODEL,
+      },
+    })
+    .catch((e) => console.error("compaction-event persist failed (non-fatal):", e));
 
   return {
     messages: compactedMessages,

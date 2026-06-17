@@ -19,6 +19,7 @@
   --accent-ink: #1f55cf;
   --accent-soft: #eef3ff;
   --accent-bd: #d8e4ff;
+  --on-accent: #ffffff;
   --open: #2f6df6;
   --open-fg: #1f55cf;
   --open-bg: #eef3ff;
@@ -51,6 +52,7 @@
   --accent-ink: #a9c4ff;
   --accent-soft: #19294a;
   --accent-bd: #25406f;
+  --on-accent: #0b1220;
   --open: #7aa2ff;
   --open-fg: #a9c4ff;
   --open-bg: #19294a;
@@ -87,6 +89,7 @@
   --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
   --color-accent-bd: var(--accent-bd);
+  --color-on-accent: var(--on-accent);
   --font-sans: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 }

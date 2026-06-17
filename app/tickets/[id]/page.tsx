@@ -6,7 +6,7 @@ import { StatusBadge, PriorityPill, PlanTag } from "@/app/_components/Pills";
 import { ApproveButton } from "@/app/_components/ApproveButton";
 import { AgentTracePanel } from "@/app/_components/AgentTracePanel";
 import { IconArrowLeft, IconDraft, IconCheck, IconWarning } from "@/app/_components/icons";
-import { formatUsd, timeAgo, initials, avatarColors } from "@/lib/format";
+import { formatUsd, timeAgo, initials } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -30,8 +30,6 @@ export default async function TicketPage({
   const sent = ticket.messages.filter((m) => m.role === "AI" && m.status === "SENT").at(-1);
   const escalTeam = ticket.tags.find((t) => t.startsWith("escalated:"))?.split(":")[1];
 
-  const av = avatarColors(ticket.customer.name);
-
   return (
     <div className="flex h-full">
       <div className="flex min-w-0 flex-1 flex-col">
@@ -52,10 +50,7 @@ export default async function TicketPage({
             <div>
               <h1 className="text-[19px] font-semibold tracking-[-0.02em] text-ink">{ticket.subject}</h1>
               <div className="mt-2 flex items-center gap-3">
-                <div
-                  className="flex h-[26px] w-[26px] items-center justify-center rounded-full text-[10px] font-semibold"
-                  style={{ background: av.bg, color: av.fg }}
-                >
+                <div className="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-accent-soft text-[10px] font-semibold text-accent">
                   {initials(ticket.customer.name)}
                 </div>
                 <span className="text-[13px] font-medium text-ink">{ticket.customer.name}</span>

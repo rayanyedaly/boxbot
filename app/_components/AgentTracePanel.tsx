@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import type { AgentEvent } from "@/lib/agent/loop";
 import type { TicketTrace } from "@/lib/queries";
 import { formatUsd } from "@/lib/format";
-import { IconActivity, IconPanelCollapse, IconCheck } from "./icons";
+import { IconActivity, IconPanelCollapse, IconCheck, IconWarning } from "./icons";
 
 type DoneSummary = {
   type: "done";
@@ -102,8 +102,11 @@ export function AgentTracePanel({ ticketId, trace }: { ticketId: string; trace: 
 
   if (collapsed) {
     return (
-      <aside
+      <button
+        type="button"
         onClick={() => setCollapsed(false)}
+        aria-label="Expand agent run panel"
+        aria-expanded={false}
         className="flex h-full w-[54px] flex-none cursor-pointer flex-col items-center gap-4 border-l border-border bg-surface pt-4"
       >
         <span className="text-faint">
@@ -121,7 +124,7 @@ export function AgentTracePanel({ ticketId, trace }: { ticketId: string; trace: 
         >
           {formatUsd(cost)}
         </span>
-      </aside>
+      </button>
     );
   }
 
@@ -152,7 +155,11 @@ export function AgentTracePanel({ ticketId, trace }: { ticketId: string; trace: 
       </div>
 
       {/* Timeline */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-[18px] pt-1">
+      <div
+        className="min-h-0 flex-1 overflow-y-auto px-[18px] pt-1"
+        aria-live="polite"
+        aria-busy={running}
+      >
         <div className="pb-2 font-mono text-[9.5px] font-semibold tracking-[0.06em] text-faint">
           {showLive ? "LIVE RUN" : `TOOL CHAIN · ${trace.steps.length} STEPS`}
         </div>
@@ -188,7 +195,7 @@ export function AgentTracePanel({ ticketId, trace }: { ticketId: string; trace: 
                   className="absolute left-0.5 top-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full font-mono text-[9px] font-bold"
                   style={
                     terminal
-                      ? { background: "var(--accent)", color: "#fff" }
+                      ? { background: "var(--accent)", color: "var(--on-accent)" }
                       : { background: "var(--surface)", border: "1.5px solid var(--border)", color: "var(--muted)" }
                   }
                 >
@@ -207,7 +214,11 @@ export function AgentTracePanel({ ticketId, trace }: { ticketId: string; trace: 
         {showLive &&
           events.map(({ id, event }) => <LiveRow key={id} event={event} />)}
         {running && events.length === 0 && <p className="py-2 text-[11px] text-faint">Starting run…</p>}
-        {error && <p className="py-2 font-mono text-[11px] text-[color:var(--escal-fg)]">⚠ {error}</p>}
+        {error && (
+          <p className="flex items-center gap-1 py-2 font-mono text-[11px] text-[color:var(--escal-fg)]">
+            <IconWarning size={12} /> {error}
+          </p>
+        )}
       </div>
 
       {/* Footer */}
@@ -216,7 +227,7 @@ export function AgentTracePanel({ ticketId, trace }: { ticketId: string; trace: 
           type="button"
           onClick={run}
           disabled={running}
-          className="rounded-md bg-accent px-3 py-1.5 text-[12px] font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+          className="rounded-md bg-accent px-3 py-1.5 text-[12px] font-semibold text-on-accent transition hover:opacity-90 disabled:opacity-60"
         >
           {running ? "Running…" : trace.hasRun ? "Re-run agent" : "Run agent"}
         </button>

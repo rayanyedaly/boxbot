@@ -99,6 +99,7 @@ export default async function InboxPage({
             <Link
               key={r.id}
               href={`/tickets/${r.id}`}
+              aria-label={r.subject}
               className={`grid ${COLS} items-center gap-3.5 border-b border-border-2 px-6 py-[13px] transition hover:bg-inset`}
             >
               {/* Status */}

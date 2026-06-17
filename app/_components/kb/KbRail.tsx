@@ -13,7 +13,7 @@ export function KbRail({ groups }: { groups: KbGroup[] }) {
   return (
     <aside className="flex h-full w-[300px] flex-none flex-col border-r border-border bg-surface">
       <div className="flex h-14 flex-none items-center gap-2 border-b border-border px-5">
-        <h1 className="text-[15px] font-semibold text-ink">Articles</h1>
+        <h2 className="text-[15px] font-semibold text-ink">Articles</h2>
         <span className="font-mono text-[11px] text-faint">{total}</span>
       </div>
       <div className="flex-1 overflow-y-auto px-1.5 py-3.5">

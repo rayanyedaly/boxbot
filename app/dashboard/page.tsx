@@ -113,6 +113,7 @@ export default async function DashboardPage() {
               <Link
                 key={r.ticketId}
                 href={`/tickets/${r.ticketId}`}
+                aria-label={r.subject}
                 className="grid grid-cols-[88px_minmax(0,1fr)_104px_64px] items-center gap-3 border-b border-border-2 py-[11px] transition hover:bg-inset"
               >
                 <span className="font-mono text-[11px] text-muted">{r.ticketId.slice(0, 8)}</span>

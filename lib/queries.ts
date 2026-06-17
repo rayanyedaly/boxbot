@@ -6,6 +6,11 @@
 
 import { prisma } from "./prisma";
 import { decToNumber } from "./format";
+import { PRICES } from "./agent/cost";
+
+const AGENT_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
+/** Input $/MTok of the agent model — used to estimate compaction savings. */
+const AGENT_INPUT_PRICE = PRICES[AGENT_MODEL]?.input ?? 3;
 
 export interface TicketCost {
   costUsd: number;
@@ -391,8 +396,8 @@ export async function dashboardStats(): Promise<DashboardStats> {
     compactionSavings: {
       tokensSaved: comp._sum.tokensSaved ?? 0,
       count: comp._count._all,
-      // Tokens saved would have re-cost input price on the next call (~$3/MTok Sonnet).
-      costSaved: Math.round(((comp._sum.tokensSaved ?? 0) * 3) / 1e6 * 1e6) / 1e6,
+      // Tokens saved would re-cost the agent model's input price on the next call.
+      costSaved: Math.round(((comp._sum.tokensSaved ?? 0) * AGENT_INPUT_PRICE) / 1e6 * 1e6) / 1e6,
     },
   };
 }
