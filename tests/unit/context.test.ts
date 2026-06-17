@@ -4,7 +4,7 @@ const m = vi.hoisted(() => ({
   countTokens: vi.fn(),
   create: vi.fn(),
   logLlmCall: vi.fn(async () => 0.002),
-  compactionCreate: vi.fn(async () => ({})),
+  compactionCreate: vi.fn(async (_args: { data: Record<string, unknown> }) => ({})),
 }));
 
 vi.mock("../../lib/agent/llm", () => ({
@@ -88,10 +88,10 @@ describe("maybeCompact — context compaction", () => {
 
     // The event is persisted for the dashboard's real savings figure.
     expect(m.compactionCreate).toHaveBeenCalledTimes(1);
-    expect(m.compactionCreate.mock.calls[0][0].data).toMatchObject({
-      tokensBefore: 18000,
-      tokensAfter: 6000,
-      tokensSaved: 12000,
-    });
+    expect(m.compactionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ tokensBefore: 18000, tokensAfter: 6000, tokensSaved: 12000 }),
+      }),
+    );
   });
 });
