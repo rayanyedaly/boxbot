@@ -18,6 +18,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 // Relative (not "@/lib/prisma") so the tsx runners resolve it. One shared client means
 // a harness that points DATABASE_URL at another DB (evals) moves every query with it.
 import { prisma } from "../prisma";
+import { searchKb } from "./kb-search";
 
 // --- API-facing definitions ------------------------------------------------
 
@@ -77,8 +78,8 @@ export const toolDefinitions: Anthropic.Tool[] = [
   {
     name: "search_knowledge_base",
     description:
-      "Search internal policy / how-to articles by keyword. ALWAYS consult this before " +
-      "asserting a policy (refunds, cancellations, SLAs) so replies are grounded in real " +
+      "Search internal policy / how-to articles by keywords (any word may match; best " +
+      "matches first). ALWAYS consult this before asserting a policy (refunds, cancellations, SLAs) so replies are grounded in real " +
       "docs rather than guessed. Returns matching article titles and bodies.",
     input_schema: {
       type: "object",
@@ -217,22 +218,10 @@ export const toolHandlers: Record<string, ToolHandler> = {
     return { orders };
   },
 
-  async search_knowledge_base({ query, limit = 3 }) {
-    // TODO: swap this contains-match for Postgres full-text search (tsvector) or
-    // a small embedding index once the basics work. Keep results short — bodies
+  async search_knowledge_base({ query, limit }) {
+    // Ranked full-text search; see lib/agent/kb-search.ts. Keep results short — bodies
     // are read by the model on the next turn and you pay for those tokens.
-    const articles = await prisma.kbArticle.findMany({
-      where: {
-        OR: [
-          { title: { contains: query, mode: "insensitive" } },
-          { body: { contains: query, mode: "insensitive" } },
-          { tags: { has: query.toLowerCase() } },
-        ],
-      },
-      take: limit,
-      select: { title: true, body: true, slug: true },
-    });
-    return { articles };
+    return { articles: await searchKb(String(query ?? ""), limit) };
   },
 
   async get_ticket_history({ customerId, limit = 5 }) {

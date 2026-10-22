@@ -7,6 +7,7 @@
 import { prisma } from "./prisma";
 import { decToNumber } from "./format";
 import { PRICES } from "./agent/cost";
+import { searchKb } from "./agent/kb-search";
 
 const AGENT_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
 /** Input $/MTok of the agent model — used to estimate compaction savings. */
@@ -68,7 +69,7 @@ export async function ticketTrace(ticketId: string): Promise<TicketTrace> {
   });
 
   const steps: TraceStep[] = [];
-  const kbQueries: string[] = [];
+  const kbQueries: KbQuery[] = [];
   let toolCalls = 0;
   let latencyMs = 0;
   let costUsd = 0;
@@ -87,7 +88,7 @@ export async function ticketTrace(ticketId: string): Promise<TicketTrace> {
         toolCalls++;
         steps.push({ index: ++idx, kind: "tool", name: t.name, detail: traceDetail(t.input) });
         if (t.name === "search_knowledge_base" && typeof t.input?.query === "string") {
-          kbQueries.push(t.input.query);
+          kbQueries.push({ query: t.input.query, limit: t.input.limit });
         }
       }
     }
@@ -111,22 +112,24 @@ function traceDetail(input: unknown): string {
   return v == null ? "" : String(v);
 }
 
-async function resolveKbCitations(queries: string[]): Promise<{ slug: string; title: string }[]> {
-  const uniq = [...new Set(queries.map((q) => q.trim()).filter(Boolean))];
-  if (uniq.length === 0) return [];
-  const articles = await prisma.kbArticle.findMany({
-    where: {
-      OR: uniq.flatMap((q) => [
-        { title: { contains: q, mode: "insensitive" as const } },
-        { body: { contains: q, mode: "insensitive" as const } },
-        { tags: { has: q.toLowerCase() } },
-      ]),
-    },
-    select: { slug: true, title: true },
-    take: 6,
-  });
+interface KbQuery {
+  query: string;
+  limit?: unknown;
+}
+
+/** The articles the agent's KB searches returned — the same search, re-run. */
+async function resolveKbCitations(queries: KbQuery[]): Promise<{ slug: string; title: string }[]> {
   const seen = new Set<string>();
-  return articles.filter((a) => !seen.has(a.slug) && seen.add(a.slug));
+  const out: { slug: string; title: string }[] = [];
+  for (const q of queries) {
+    for (const a of await searchKb(q.query, q.limit)) {
+      if (!seen.has(a.slug)) {
+        seen.add(a.slug);
+        out.push({ slug: a.slug, title: a.title });
+      }
+    }
+  }
+  return out;
 }
 
 export interface InboxRow {
@@ -215,34 +218,26 @@ async function kbCitationCounts(): Promise<Map<string, number>> {
     where: { ticketId: { not: null } },
     select: { ticketId: true, toolCalls: true },
   });
-  const pairs: { ticketId: string; query: string }[] = [];
+  const pairs: { ticketId: string; key: string }[] = [];
+  const searches = new Map<string, KbQuery>();
   for (const c of calls) {
     if (!c.ticketId || !Array.isArray(c.toolCalls)) continue;
-    for (const t of c.toolCalls as { name?: string; input?: { query?: unknown } }[]) {
+    for (const t of c.toolCalls as { name?: string; input?: { query?: unknown; limit?: unknown } }[]) {
       if (t?.name === "search_knowledge_base" && typeof t.input?.query === "string") {
-        pairs.push({ ticketId: c.ticketId, query: t.input.query.trim().toLowerCase() });
+        const key = JSON.stringify([t.input.query, t.input.limit ?? null]);
+        searches.set(key, { query: t.input.query, limit: t.input.limit });
+        pairs.push({ ticketId: c.ticketId, key });
       }
     }
   }
-  const queryToSlugs = new Map<string, string[]>();
-  for (const q of new Set(pairs.map((p) => p.query))) {
-    if (!q) continue;
-    const arts = await prisma.kbArticle.findMany({
-      where: {
-        OR: [
-          { title: { contains: q, mode: "insensitive" } },
-          { body: { contains: q, mode: "insensitive" } },
-          { tags: { has: q } },
-        ],
-      },
-      select: { slug: true },
-      take: 6,
-    });
-    queryToSlugs.set(q, arts.map((a) => a.slug));
+  // Re-run each distinct search once, exactly as the tool ran it.
+  const keyToSlugs = new Map<string, string[]>();
+  for (const [key, q] of searches) {
+    keyToSlugs.set(key, (await searchKb(q.query, q.limit)).map((a) => a.slug));
   }
   const slugTickets = new Map<string, Set<string>>();
   for (const p of pairs) {
-    for (const slug of queryToSlugs.get(p.query) ?? []) {
+    for (const slug of keyToSlugs.get(p.key) ?? []) {
       (slugTickets.get(slug) ?? slugTickets.set(slug, new Set()).get(slug)!).add(p.ticketId);
     }
   }

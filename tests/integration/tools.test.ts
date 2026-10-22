@@ -40,3 +40,37 @@ describe("tools against the seeded test DB", () => {
     expect(article?.body).toContain("30 days");
   });
 });
+
+describe("search_knowledge_base ranking", () => {
+  const search = async (query: string, limit?: number) =>
+    ((await runTool("search_knowledge_base", { query, limit })) as { articles: Article[] }).articles;
+
+  it("matches multi-word, keyword-style queries (terms are OR'd, not one substring)", async () => {
+    const articles = await search("refund policy annual plan cancellation charge");
+    expect(articles.length).toBeGreaterThan(0);
+    expect(articles.map((a) => a.slug)).toContain("refund-policy");
+  });
+
+  it("ranks the article matching the most terms first", async () => {
+    expect((await search("can't log in password login issues"))[0].slug).toBe("login-troubleshooting");
+  });
+
+  it("breaks rank ties by slug, so results are deterministic", async () => {
+    // billing-disputes and cancel-subscription rank exactly equal for "refunded".
+    expect((await search("refunded")).map((a) => a.slug).slice(1, 3)).toEqual(["billing-disputes", "cancel-subscription"]);
+  });
+
+  it("stems: 'refunded' finds the refund article", async () => {
+    expect((await search("refunded")).map((a) => a.slug)).toContain("refund-policy");
+  });
+
+  it("treats tsquery syntax as plain words and returns nothing for an empty query", async () => {
+    expect((await search("refund & !(policy | :*")).map((a) => a.slug)).toContain("refund-policy");
+    expect(await search("!!! ???")).toEqual([]);
+  });
+
+  it("applies the limit", async () => {
+    expect(await search("billing account refund login", 1)).toHaveLength(1);
+    expect(await search("billing account refund login")).toHaveLength(3); // default
+  });
+});
