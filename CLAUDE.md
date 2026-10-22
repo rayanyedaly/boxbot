@@ -113,9 +113,9 @@ prisma/seed.ts              # fake customers/orders/tickets/KB
       (today it's only returned to the model) and the ticket page shows it next to the team.
       Status (2026-10-22): gold set + harness + CI done. Sonnet 4.6 went 56.7% → 82.2% dev /
       88.9% held-out (3 trials) via KB/customer search fixes + prompt rules — see the README
-      progression table. Migration to Sonnet 5.5 + Haiku 5.5 is committed but not yet
-      measured: NEXT is the 3-trial dev + held-out run on 5.5, then push (needs the
-      ANTHROPIC_API_KEY repo secret), then the Railway demo.
+      progression table. Sonnet 5.5 + Haiku 5.5 (3 trials): 93.3% dev / 100% held-out at
+      half the cost per ticket. NEXT: push (needs the ANTHROPIC_API_KEY repo secret), then
+      the Railway demo, then the video.
 
 Mark the active phase when you start a session so context survives across sessions.
 
