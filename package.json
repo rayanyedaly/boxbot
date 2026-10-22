@@ -11,6 +11,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "agent": "node --env-file=.env --import tsx scripts/run-agent.ts",
+    "eval": "tsx evals/run.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset --force",

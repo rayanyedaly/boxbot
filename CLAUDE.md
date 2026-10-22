@@ -101,6 +101,16 @@ prisma/seed.ts              # fake customers/orders/tickets/KB
 - [x] **Phase 4 (~1–1.5 hrs, CUTTABLE)** — multi-stage `Dockerfile` + account-agnostic
       AWS CDK stack in `infra/` (Fargate + RDS); `cdk synth` is clean. IaC is a separate
       artifact, not the demo host — so the Phase 3 "live demo URL" is intentionally open.
+- [~] **Phase 5 — evals (ACTIVE)** — gold set of ~30 tickets with policy-derived expected
+      outcomes (`evals/`), hard checks + LLM judge, a harness reporting pass rate / cost per
+      ticket / latency, run in CI. Order: prep → gold set (human-reviewed) → baseline on
+      Sonnet 4.6 → migrate to Sonnet 5.5 / Haiku 5.5 → re-run. Then: Railway live demo, video.
+      Eval discipline: `evals/holdout.ts` is FROZEN (2026-10-21) — never read its failures
+      to decide agent changes, never edit a held-out case to pass; run it only at milestones.
+      Never change gold cases/rubrics/regexes in the same commit as agent changes; a grader
+      fix gets its own commit citing the run evidence.
+      Demo prep: `escalate_ticket` persists its `reason` as an internal note on the ticket
+      (today it's only returned to the model) and the ticket page shows it next to the team.
 
 Mark the active phase when you start a session so context survives across sessions.
 
