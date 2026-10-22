@@ -27,6 +27,12 @@ export const PRICES: Record<string, ModelPrice> = {
   "claude-sonnet-4-6": { input: 3.0, output: 15.0, cacheWrite5m: 3.75, cacheRead: 0.3 },
   // Used by the compaction step to summarize older turns cheaply.
   "claude-haiku-4-5": { input: 1.0, output: 5.0, cacheWrite5m: 1.25, cacheRead: 0.1 },
+  // Current generation (rates confirmed 2026-10-21; cache rates per the same multipliers).
+  "claude-sonnet-5-5": { input: 2.0, output: 10.0, cacheWrite5m: 2.5, cacheRead: 0.2 },
+  // Prompts up to 100K tokens. Above that Haiku 5.5 bills $0.50 / $2.50, which this
+  // flat map doesn't model — fine for the eval judge and summarizer, whose prompts are
+  // far smaller.
+  "claude-haiku-5-5": { input: 0.1, output: 0.5, cacheWrite5m: 0.125, cacheRead: 0.01 },
 };
 
 /** The token counts we price. Mirrors the Anthropic Messages API `usage` object. */

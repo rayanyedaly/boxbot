@@ -33,3 +33,10 @@ describe("costUsd", () => {
     );
   });
 });
+
+describe("current-generation prices", () => {
+  it("prices Sonnet 5.5 and Haiku 5.5 (judge + summarizer)", () => {
+    expect(costUsd("claude-sonnet-5-5", { input_tokens: 1_000_000, output_tokens: 1_000_000 })).toBe(12);
+    expect(costUsd("claude-haiku-5-5", { input_tokens: 1_000_000, output_tokens: 1_000_000 })).toBe(0.6);
+  });
+});
