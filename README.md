@@ -24,25 +24,26 @@ and push; the numbers below are refreshed automatically on `main`. See [Evals](#
 
 | Metric | Value |
 |---|---|
-| Pass rate (pass@1) | **56.7%** (17/30 runs; 95% CI 39.2%–72.6%) |
-| Cost per ticket | $0.0441 |
-| Latency p50 / p95 / max | 24.8s / 35.4s / 36.0s |
-| Tool calls per ticket | 7.3 |
+| Pass rate (pass@1) | **82.2%** (74/90 runs; 95% CI 73.1%–88.8%) |
+| Reliability (pass^3) | 73.3% |
+| Cost per ticket | $0.0424 |
+| Latency p50 / p95 / max | 22.3s / 30.6s / 32.0s |
+| Tool calls per ticket | 5.4 |
 
-dev split · 30 cases × 1 trial(s) · agent `claude-sonnet-4-6` (effort medium) · judge `claude-sonnet-5-5` · 2026-10-21 · `1c0fa9e`
+dev split · 30 cases × 3 trial(s) · agent `claude-sonnet-4-6` (effort medium) · judge `claude-sonnet-5-5` · 2026-10-22 · `9e99723`
 
 <details><summary>By category</summary>
 
 | Category | Passed |
 |---|---|
-| billing | 5/8 |
-| disputes-security | 4/4 |
-| technical | 2/4 |
-| how-to | 1/5 |
-| routing | 1/3 |
-| triage | 2/2 |
-| identity | 1/1 |
-| adversarial | 1/3 |
+| billing | 20/24 |
+| disputes-security | 12/12 |
+| technical | 9/12 |
+| how-to | 12/15 |
+| routing | 4/9 |
+| triage | 6/6 |
+| identity | 3/3 |
+| adversarial | 8/9 |
 
 </details>
 
@@ -50,12 +51,22 @@ Full report: [`evals/results/latest.md`](evals/results/latest.md)
 
 <!-- EVALS:END -->
 
-**Baseline, before any eval-driven agent change** (Sonnet 4.6, 1 trial): dev **56.7%** (17/30) ·
-held-out **58.3%** (7/12) — [`baseline-dev`](evals/results/baseline-dev-sonnet-4-6.md) ·
-[`baseline-holdout`](evals/results/baseline-holdout-sonnet-4-6.md). The dominant failure is
-retrieval: KB and customer search match the whole query as one substring, so multi-word
-queries return nothing and the agent escalates or stalls instead of answering. How the judge
-was chosen: [`judge-agreement.md`](evals/results/judge-agreement.md).
+**How it got here** (Sonnet 4.6 agent throughout; each step is its own commit and run):
+
+| Step | Dev pass@1 | Held-out pass@1 | Cost / ticket |
+|---|---|---|---|
+| Baseline — [`baseline-dev`](evals/results/baseline-dev-sonnet-4-6.md) · [`baseline-holdout`](evals/results/baseline-holdout-sonnet-4-6.md) | 56.7% (17/30) | 58.3% (7/12) | $0.044 |
+| Ranked full-text KB search — [`search-fts-dev`](evals/results/search-fts-dev-sonnet-4-6.md) | 80.0% (24/30) | — | $0.039 |
+| Multi-term customer search; claims / status / escalation rules — [`step2-dev`](evals/results/step2-dev-sonnet-4-6.md) | 80.0% (24/30) | — | $0.042 |
+| **Confirmation, 3 trials** — [`confirm-dev`](evals/results/confirm-dev-sonnet-4-6.md) · [`confirm-holdout`](evals/results/confirm-holdout-sonnet-4-6.md) | **82.2%** (74/90; CI 73–89%) | **88.9%** (32/36; CI 75–96%) | $0.042 |
+
+The baseline's dominant failure was retrieval: KB search matched the whole query as one
+substring, so 53 of the agent's 60 keyword queries returned nothing and it escalated or
+stalled instead of answering. Fixing search alone was worth ~23 points; no case, rubric or
+regex changed along the way. The held-out split — frozen before any of this, never used to
+pick a change — scores at least as well as dev, so the gain isn't tuned to the dev cases.
+Single-trial rows carry a ±15-point interval; read the 3-trial row as the number. How the
+judge was chosen: [`judge-agreement.md`](evals/results/judge-agreement.md).
 
 ---
 
