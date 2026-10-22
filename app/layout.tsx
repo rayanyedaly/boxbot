@@ -1,20 +1,23 @@
 import type { Metadata } from "next";
-import { Schibsted_Grotesk, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Sidebar } from "@/app/_components/Sidebar";
 
-const sans = Schibsted_Grotesk({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+// Self-hosted (latin variable woff2 from Fontsource, OFL — see app/fonts/) so the build
+// never fetches from Google Fonts; that fetch flaked on CI runners.
+const schibstedGrotesk = localFont({
+  src: "./fonts/schibsted-grotesk-latin-wght-normal.woff2",
+  weight: "400 900",
   variable: "--font-schibsted",
   display: "swap",
 });
 
-const mono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+const jetbrainsMono = localFont({
+  src: "./fonts/jetbrains-mono-latin-wght-normal.woff2",
+  weight: "100 800",
   variable: "--font-jetbrains",
   display: "swap",
+  adjustFontFallback: false, // the default Arial-metric fallback is wrong for a monospace face
 });
 
 export const metadata: Metadata = {
@@ -34,7 +37,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${sans.variable} ${mono.variable}`}
+      className={`${schibstedGrotesk.variable} ${jetbrainsMono.variable}`}
       suppressHydrationWarning
     >
       <head>
