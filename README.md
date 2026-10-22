@@ -51,16 +51,31 @@ Full report: [`evals/results/latest.md`](evals/results/latest.md)
 
 <!-- EVALS:END -->
 
-**How it got here** (each step is its own commit and run; the agent is Sonnet 4.6 until the
-last row):
+**Sonnet 4.6 vs Sonnet 5.5** (same prompts, tools and gold set; 3 trials each):
 
-| Step | Dev pass@1 | Held-out pass@1 | Cost / ticket |
-|---|---|---|---|
-| Baseline — [`baseline-dev`](evals/results/baseline-dev-sonnet-4-6.md) · [`baseline-holdout`](evals/results/baseline-holdout-sonnet-4-6.md) | 56.7% (17/30) | 58.3% (7/12) | $0.044 |
-| Ranked full-text KB search — [`search-fts-dev`](evals/results/search-fts-dev-sonnet-4-6.md) | 80.0% (24/30) | — | $0.039 |
-| Multi-term customer search; claims / status / escalation rules — [`step2-dev`](evals/results/step2-dev-sonnet-4-6.md) | 80.0% (24/30) | — | $0.042 |
-| **Confirmation, 3 trials** — [`confirm-dev`](evals/results/confirm-dev-sonnet-4-6.md) · [`confirm-holdout`](evals/results/confirm-holdout-sonnet-4-6.md) | **82.2%** (74/90; CI 73–89%) | **88.9%** (32/36; CI 75–96%) | $0.042 |
-| **Sonnet 5.5 agent + Haiku 5.5 summarizer, 3 trials** — [`sonnet55-dev`](evals/results/sonnet55-dev.md) · [`sonnet55-holdout`](evals/results/sonnet55-holdout.md) | **93.3%** (84/90; CI 86–97%) | **100%** (36/36; CI 90–100%) | **$0.021** |
+| | Sonnet 4.6 | Sonnet 5.5 |
+|---|---|---|
+| Dev pass@1 | 82.2% (74/90; CI 73–89%) | **93.3%** (84/90; CI 86–97%) |
+| Dev pass^3 (all 3 trials pass) | 73.3% | **90.0%** |
+| Held-out pass@1 | 88.9% (32/36; CI 75–96%) | **100%** (36/36; CI 90–100%) |
+| Held-out pass^3 | 75.0% | **100%** |
+| Cost per ticket (dev / held-out) | $0.042 / $0.032 | **$0.021 / $0.016** |
+| Latency p50 / p95 (dev) | 22.3s / 30.6s | **8.1s / 12.0s** |
+| Tool calls per ticket (dev) | 5.4 | **4.2** |
+
+**How it got here** (each step is its own commit and run; the agent is Sonnet 4.6 until the
+last row; cost, latency and tool calls are from the dev run):
+
+| Step | Dev pass@1 | Held-out pass@1 | Cost / ticket | p50 latency | Tool calls / ticket |
+|---|---|---|---|---|---|
+| Baseline — [`baseline-dev`](evals/results/baseline-dev-sonnet-4-6.md) · [`baseline-holdout`](evals/results/baseline-holdout-sonnet-4-6.md) | 56.7% (17/30) | 58.3% (7/12) | $0.044 | 24.8s | 7.3 |
+| Ranked full-text KB search — [`search-fts-dev`](evals/results/search-fts-dev-sonnet-4-6.md) | 80.0% (24/30) | — | $0.039 | 22.0s | 5.6 |
+| Multi-term customer search; claims / status / escalation rules — [`step2-dev`](evals/results/step2-dev-sonnet-4-6.md) | 80.0% (24/30) | — | $0.042 | 20.7s | 5.3 |
+| **Confirmation, 3 trials** — [`confirm-dev`](evals/results/confirm-dev-sonnet-4-6.md) · [`confirm-holdout`](evals/results/confirm-holdout-sonnet-4-6.md) | **82.2%** (74/90; CI 73–89%) | **88.9%** (32/36; CI 75–96%) | $0.042 | 22.3s | 5.4 |
+| **Sonnet 5.5 agent + Haiku 5.5 summarizer, 3 trials** — [`sonnet55-dev`](evals/results/sonnet55-dev.md) · [`sonnet55-holdout`](evals/results/sonnet55-holdout.md) | **93.3%** (84/90; CI 86–97%) | **100%** (36/36; CI 90–100%) | **$0.021** | **8.1s** | **4.2** |
+
+Baseline → today: dev pass@1 +36.6 points, cost per ticket roughly halved ($0.044 → $0.021),
+p50 latency −67% (24.8s → 8.1s), tool calls per ticket −42% (7.3 → 4.2).
 
 The baseline's dominant failure was retrieval: KB search matched the whole query as one
 substring, so 53 of the agent's 60 keyword queries returned nothing and it escalated or
