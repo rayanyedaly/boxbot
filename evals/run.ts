@@ -91,14 +91,21 @@ async function main() {
 
   // Every case wipes and reloads the shared eval DB, so two runs at once would destroy
   // each other's worlds mid-run. A session advisory lock makes a second run refuse to
-  // start. It lives on whichever pooled connection took it, so the pool could drop it
-  // silently (idle recycling, socket error) — assertLockHeld re-checks before each case.
-  const [{ locked, pid }] = await prisma.$queryRaw<{ locked: boolean; pid: number }[]>`
+  // start. It lives on its own single-connection client: on the shared pool it sat on
+  // whichever connection took it, and Prisma closes connections idle for 5 minutes,
+  // releasing the lock mid-run. With one connection, every check below reuses (and so
+  // keeps alive) the connection that holds the lock; if it drops anyway — socket error —
+  // the reconnect gets a new pid and assertLockHeld aborts before the next case.
+  const { PrismaClient } = await import("@prisma/client");
+  const lockUrl = new URL(dbUrl);
+  lockUrl.searchParams.set("connection_limit", "1");
+  const lockDb = new PrismaClient({ datasourceUrl: lockUrl.toString() });
+  const [{ locked, pid }] = await lockDb.$queryRaw<{ locked: boolean; pid: number }[]>`
     SELECT pg_try_advisory_lock(${EVAL_LOCK_KEY}::bigint) AS locked, pg_backend_pid() AS pid`;
   if (!locked) throw new Error("Another eval run is using the eval database — wait for it to finish.");
   async function assertLockHeld() {
     // A bigint advisory key below 2^32 is recorded with classid 0 and objid = the key.
-    const [{ held }] = await prisma.$queryRaw<{ held: boolean }[]>`
+    const [{ held }] = await lockDb.$queryRaw<{ held: boolean }[]>`
       SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND classid = 0
         AND objid = ${EVAL_LOCK_KEY} AND pid = ${pid} AND granted) AS held`;
     if (!held) throw new Error("Lost the eval-database lock (its connection closed) — aborting before another run collides.");
@@ -361,6 +368,7 @@ async function main() {
   // Only now release the lock (it closes with the connection): results are on disk, so a
   // run waiting behind this one can't race us on latest.* or the README.
   await prisma.$disconnect();
+  await lockDb.$disconnect();
 
   console.log("\n" + report.headlineMarkdown(summary));
   console.log(`\nSpend: agent $${summary.agentCostUsd.toFixed(4)} + judge $${summary.judgeCostUsd.toFixed(4)}`);
