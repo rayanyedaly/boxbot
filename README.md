@@ -24,23 +24,23 @@ and push; the numbers below are refreshed automatically on `main`. See [Evals](#
 
 | Metric | Value |
 |---|---|
-| Pass rate (pass@1) | **82.2%** (74/90 runs; 95% CI 73.1%–88.8%) |
-| Reliability (pass^3) | 73.3% |
-| Cost per ticket | $0.0424 |
-| Latency p50 / p95 / max | 22.3s / 30.6s / 32.0s |
-| Tool calls per ticket | 5.4 |
+| Pass rate (pass@1) | **93.3%** (84/90 runs; 95% CI 86.2%–96.9%) |
+| Reliability (pass^3) | 90.0% |
+| Cost per ticket | $0.0205 |
+| Latency p50 / p95 / max | 8.1s / 12.0s / 13.2s |
+| Tool calls per ticket | 4.2 |
 
-dev split · 30 cases × 3 trial(s) · agent `claude-sonnet-4-6` (effort medium) · judge `claude-sonnet-5-5` · 2026-10-22 · `9e99723`
+dev split · 30 cases × 3 trial(s) · agent `claude-sonnet-5-5` (effort medium) · judge `claude-sonnet-5-5` · 2026-10-22 · `308ad34`
 
 <details><summary>By category</summary>
 
 | Category | Passed |
 |---|---|
-| billing | 20/24 |
+| billing | 22/24 |
 | disputes-security | 12/12 |
-| technical | 9/12 |
-| how-to | 12/15 |
-| routing | 4/9 |
+| technical | 12/12 |
+| how-to | 15/15 |
+| routing | 6/9 |
 | triage | 6/6 |
 | identity | 3/3 |
 | adversarial | 8/9 |
@@ -51,7 +51,8 @@ Full report: [`evals/results/latest.md`](evals/results/latest.md)
 
 <!-- EVALS:END -->
 
-**How it got here** (Sonnet 4.6 agent throughout; each step is its own commit and run):
+**How it got here** (each step is its own commit and run; the agent is Sonnet 4.6 until the
+last row):
 
 | Step | Dev pass@1 | Held-out pass@1 | Cost / ticket |
 |---|---|---|---|
@@ -59,14 +60,20 @@ Full report: [`evals/results/latest.md`](evals/results/latest.md)
 | Ranked full-text KB search — [`search-fts-dev`](evals/results/search-fts-dev-sonnet-4-6.md) | 80.0% (24/30) | — | $0.039 |
 | Multi-term customer search; claims / status / escalation rules — [`step2-dev`](evals/results/step2-dev-sonnet-4-6.md) | 80.0% (24/30) | — | $0.042 |
 | **Confirmation, 3 trials** — [`confirm-dev`](evals/results/confirm-dev-sonnet-4-6.md) · [`confirm-holdout`](evals/results/confirm-holdout-sonnet-4-6.md) | **82.2%** (74/90; CI 73–89%) | **88.9%** (32/36; CI 75–96%) | $0.042 |
+| **Sonnet 5.5 agent + Haiku 5.5 summarizer, 3 trials** — [`sonnet55-dev`](evals/results/sonnet55-dev.md) · [`sonnet55-holdout`](evals/results/sonnet55-holdout.md) | **93.3%** (84/90; CI 86–97%) | **100%** (36/36; CI 90–100%) | **$0.021** |
 
 The baseline's dominant failure was retrieval: KB search matched the whole query as one
 substring, so 53 of the agent's 60 keyword queries returned nothing and it escalated or
 stalled instead of answering. Fixing search alone was worth ~23 points; no case, rubric or
 regex changed along the way. The held-out split — frozen before any of this, never used to
 pick a change — scores at least as well as dev, so the gain isn't tuned to the dev cases.
-Single-trial rows carry a ±15-point interval; read the 3-trial row as the number. How the
-judge was chosen: [`judge-agreement.md`](evals/results/judge-agreement.md).
+Moving the agent to Sonnet 5.5 (same prompts and tools) added ~11 points while halving cost
+per ticket and cutting p50 latency from 22s to 8s; the remaining 4.6 failures were mostly
+drafts embellishing beyond what the tools returned. Single-trial rows carry a ±15-point
+interval; read the 3-trial rows as the numbers. How the judge was chosen:
+[`judge-agreement.md`](evals/results/judge-agreement.md). Caveat: the judge is also Sonnet
+5.5, so on the last row it grades its own model's drafts; the hard checks (status,
+escalation team, tools, required facts, privacy) don't depend on it.
 
 ---
 
