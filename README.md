@@ -24,26 +24,26 @@ and push; the numbers below are refreshed automatically on `main`. See [Evals](#
 
 | Metric | Value |
 |---|---|
-| Pass rate (pass@1) | **90.0%** (81/90 runs; 95% CI 82.1%–94.6%) |
-| Reliability (pass^3) | 86.7% |
-| Cost per ticket | $0.0209 |
-| Latency p50 / p95 / max | 7.3s / 12.0s / 34.6s |
+| Pass rate (pass@1) | **87.8%** (79/90 runs; 95% CI 79.4%–93.0%) |
+| Reliability (pass^3) | 80.0% |
+| Cost per ticket | $0.0206 |
+| Latency p50 / p95 / max | 7.1s / 10.7s / 12.2s |
 | Tool calls per ticket | 4.2 |
 
-dev split · 30 cases × 3 trial(s) · agent `claude-sonnet-5-5` (effort medium) · judge `claude-sonnet-5-5` · 2026-10-22 · `72cdf18`
+dev split · 30 cases × 3 trial(s) · agent `claude-sonnet-5-5` (effort medium) · judge `claude-sonnet-5-5` · 2026-10-22 · `123c42b`
 
 <details><summary>By category</summary>
 
 | Category | Passed |
 |---|---|
-| billing | 21/24 |
+| billing | 20/24 |
 | disputes-security | 12/12 |
-| technical | 10/12 |
+| technical | 9/12 |
 | how-to | 15/15 |
-| routing | 6/9 |
+| routing | 7/9 |
 | triage | 6/6 |
 | identity | 3/3 |
-| adversarial | 8/9 |
+| adversarial | 7/9 |
 
 </details>
 
