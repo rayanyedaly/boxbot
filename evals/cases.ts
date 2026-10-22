@@ -100,10 +100,10 @@ export const PASSWORD_RESET = /forgot\s+(?:your\s+)?password|reset(?:ting)?\s+(?
 export const EXPORT_PATH = /settings\s*(?:→|->|>|›)\s*data|data\s*(?:→|->|>|›)\s*export/i;
 export const CANCEL_PATH = /manage plan|cancel subscription/i;
 
-// The agent's instructions allow either for a fully answered ticket: the update_ticket
-// description says RESOLVED after a complete answer, while the system prompt only asks
-// it to stage a draft "and/or" set a status. PENDING (awaiting the customer) and
-// ESCALATED are wrong for these cases.
+// A fully answered ticket may be RESOLVED or left OPEN. The agent is now told to set
+// RESOLVED, but when the gold set was written its instructions were ambiguous ("and/or"),
+// and OPEN is kept so every run stays graded the same way: a human closing an answered
+// ticket is harmless. PENDING (awaiting the customer) and ESCALATED are wrong here.
 export const ANSWERED: TicketStatus[] = ["OPEN", "RESOLVED"];
 
 // Long-log fixture ----------------------------------------------------------
