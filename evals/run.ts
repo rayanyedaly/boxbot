@@ -91,24 +91,34 @@ async function main() {
 
   // Every case wipes and reloads the shared eval DB, so two runs at once would destroy
   // each other's worlds mid-run. A session advisory lock makes a second run refuse to
-  // start. It lives on its own single-connection client: on the shared pool it sat on
-  // whichever connection took it, and Prisma closes connections idle for 5 minutes,
-  // releasing the lock mid-run. With one connection, every check below reuses (and so
-  // keeps alive) the connection that holds the lock; if it drops anyway — socket error —
-  // the reconnect gets a new pid and assertLockHeld aborts before the next case.
-  const { PrismaClient } = await import("@prisma/client");
+  // start. A session lock dies with its connection, and Prisma replaces its connections
+  // after ~5 minutes even when busy — so the lock lives on a plain pg client: one socket
+  // for the whole run, nothing to recycle it. assertLockHeld re-checks on that same
+  // socket before each case; if the socket died, the query throws and the run aborts.
+  const { Client } = await import("pg");
   const lockUrl = new URL(dbUrl);
-  lockUrl.searchParams.set("connection_limit", "1");
-  const lockDb = new PrismaClient({ datasourceUrl: lockUrl.toString() });
-  const [{ locked, pid }] = await lockDb.$queryRaw<{ locked: boolean; pid: number }[]>`
-    SELECT pg_try_advisory_lock(${EVAL_LOCK_KEY}::bigint) AS locked, pg_backend_pid() AS pid`;
-  if (!locked) throw new Error("Another eval run is using the eval database — wait for it to finish.");
+  lockUrl.search = ""; // Prisma-only params (?schema=…) mean nothing to pg
+  const lockDb = new Client({ connectionString: lockUrl.toString() });
+  // A dropped socket emits "error"; unhandled, that crashes the process mid-case. Record
+  // it instead — the next assertLockHeld query fails and aborts the run cleanly.
+  lockDb.on("error", (err) => console.error(`eval lock connection error: ${err.message}`));
+  await lockDb.connect();
+  const { rows: [{ locked }] } = await lockDb.query<{ locked: boolean }>(
+    "SELECT pg_try_advisory_lock($1::bigint) AS locked",
+    [EVAL_LOCK_KEY],
+  );
+  if (!locked) {
+    await lockDb.end();
+    throw new Error("Another eval run is using the eval database — wait for it to finish.");
+  }
   async function assertLockHeld() {
     // A bigint advisory key below 2^32 is recorded with classid 0 and objid = the key.
-    const [{ held }] = await lockDb.$queryRaw<{ held: boolean }[]>`
-      SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND classid = 0
-        AND objid = ${EVAL_LOCK_KEY} AND pid = ${pid} AND granted) AS held`;
-    if (!held) throw new Error("Lost the eval-database lock (its connection closed) — aborting before another run collides.");
+    const { rows: [{ held }] } = await lockDb.query<{ held: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND classid = 0
+        AND objid = $1 AND pid = pg_backend_pid() AND granted) AS held`,
+      [EVAL_LOCK_KEY],
+    );
+    if (!held) throw new Error("Lost the eval-database lock — aborting before another run collides.");
   }
 
   // dev: the set we iterate against (and CI runs). holdout: frozen, milestones only.
@@ -136,6 +146,8 @@ async function main() {
 
   if (args.rejudge) {
     await rejudge(args.rejudge);
+    await prisma.$disconnect();
+    await lockDb.end(); // an open pg socket would keep the process alive
     return;
   }
 
@@ -368,7 +380,7 @@ async function main() {
   // Only now release the lock (it closes with the connection): results are on disk, so a
   // run waiting behind this one can't race us on latest.* or the README.
   await prisma.$disconnect();
-  await lockDb.$disconnect();
+  await lockDb.end();
 
   console.log("\n" + report.headlineMarkdown(summary));
   console.log(`\nSpend: agent $${summary.agentCostUsd.toFixed(4)} + judge $${summary.judgeCostUsd.toFixed(4)}`);
