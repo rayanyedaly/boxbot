@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
+import { prisma } from "../../lib/prisma";
 import { runTool } from "../../lib/agent/tools";
 
 type Customer = { id: string; name: string; email: string; plan: string };
@@ -12,6 +13,19 @@ describe("tools against the seeded test DB", () => {
     expect(maya).toBeDefined();
     expect(maya?.name).toBe("Maya Chen");
     expect(maya?.plan).toBe("PRO");
+  });
+
+  it("search_customer matches name and email given together (every term must match)", async () => {
+    const res = (await runTool("search_customer", { query: "Maya Chen <maya.chen@example.com>" })) as {
+      matches: Customer[];
+    };
+    expect(res.matches.map((m) => m.email)).toEqual(["maya.chen@example.com"]);
+    const none = (await runTool("search_customer", { query: "Maya Owusu" })) as { matches: Customer[] };
+    expect(none.matches).toEqual([]);
+  });
+
+  it("search_customer returns nothing for an empty query (not the first 5 customers)", async () => {
+    expect(((await runTool("search_customer", { query: "  " })) as { matches: Customer[] }).matches).toEqual([]);
   });
 
   it("search_orders returns the customer's REFUNDED order with the right amount", async () => {
@@ -72,5 +86,32 @@ describe("search_knowledge_base ranking", () => {
   it("applies the limit", async () => {
     expect(await search("billing account refund login", 1)).toHaveLength(1);
     expect(await search("billing account refund login")).toHaveLength(3); // default
+  });
+});
+
+describe("update_ticket after an escalation", () => {
+  const created: string[] = [];
+  afterAll(async () => {
+    await prisma.ticket.deleteMany({ where: { id: { in: created } } });
+  });
+
+  it("keeps the status ESCALATED and adds tags instead of replacing them", async () => {
+    const customer = await prisma.customer.findFirstOrThrow({ select: { id: true } });
+    const t = await prisma.ticket.create({
+      data: { customerId: customer.id, subject: "test", channel: "EMAIL", priority: "LOW", tags: ["billing"] },
+    });
+    created.push(t.id);
+
+    await runTool("escalate_ticket", { ticketId: t.id, team: "billing", reason: "eligible refund" });
+    const res = (await runTool("update_ticket", { ticketId: t.id, status: "RESOLVED", tags: ["refund"] })) as {
+      error?: string;
+    };
+    expect(res.error).toBe("ticket_escalated");
+
+    await runTool("update_ticket", { ticketId: t.id, priority: "HIGH", tags: ["refund", "billing"] });
+    const after = await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } });
+    expect(after.status).toBe("ESCALATED");
+    expect(after.priority).toBe("HIGH");
+    expect([...after.tags].sort()).toEqual(["billing", "escalated:billing", "refund"]);
   });
 });

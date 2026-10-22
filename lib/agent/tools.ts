@@ -26,7 +26,7 @@ export const toolDefinitions: Anthropic.Tool[] = [
   {
     name: "search_customer",
     description:
-      "Resolve a customer by free-text query (name fragment or email). Use this first " +
+      "Resolve a customer by free-text query (name, email, or both; every word must match). Use this first " +
       "when a ticket references a person but you only have a ticketId. Returns up to a " +
       "few candidate matches with their ids; pick the best and use get_customer_context " +
       "for the full picture.",
@@ -60,7 +60,8 @@ export const toolDefinitions: Anthropic.Tool[] = [
     description:
       "List a customer's orders, newest first, optionally filtered by status " +
       "(PAID, REFUNDED, PENDING, FAILED). Use for billing, refund, and 'where's my order' " +
-      "questions. Returns amounts and dates.",
+      "questions. Returns amounts and dates. createdAt is when the order was placed; a " +
+      "REFUNDED order has no separate refund date.",
     input_schema: {
       type: "object",
       properties: {
@@ -126,8 +127,10 @@ export const toolDefinitions: Anthropic.Tool[] = [
   {
     name: "update_ticket",
     description:
-      "Triage the ticket: set status, priority, and/or tags. Use to mark a ticket PENDING " +
-      "while awaiting info, RESOLVED after drafting a complete answer, or to re-prioritize.",
+      "Triage the ticket: set status, priority, and/or tags. RESOLVED when your draft fully " +
+      "answers the customer; PENDING only when your draft asks them for information you need " +
+      "before you can help. Tags are added to the ticket's existing tags and don't notify anyone. " +
+      "An escalated ticket's status can't be changed.",
     input_schema: {
       type: "object",
       properties: {
@@ -148,10 +151,11 @@ export const toolDefinitions: Anthropic.Tool[] = [
   {
     name: "escalate_ticket",
     description:
-      "Escalate to a human team when the issue is out of policy, high-risk, or you lack the " +
-      "tools to resolve it (e.g. legal, security, manual refund override). Sets the ticket to " +
-      "ESCALATED and records the reason and target team. Prefer this over guessing on " +
-      "anything sensitive.",
+      "Escalate to a human team when the knowledge base says that team handles the case, the " +
+      "issue is high-risk (security incidents, fraud or disputes, legal), or you lack the " +
+      "tools to resolve it. Don't escalate when the knowledge base says no escalation is needed " +
+      "(e.g. it tells you to answer or decline the request yourself). Sets the ticket to ESCALATED and records the reason and target " +
+      "team. Prefer this over guessing on anything sensitive.",
     input_schema: {
       type: "object",
       properties: {
@@ -175,13 +179,21 @@ type ToolHandler = (input: any) => Promise<unknown>;
 
 export const toolHandlers: Record<string, ToolHandler> = {
   async search_customer({ query }) {
+    // The model often passes name and email together ("Omar Haddad omar@x.com"), which
+    // as one substring matches nothing. Split into terms; each must match the name or
+    // the email.
+    const terms = String(query ?? "").split(/[\s,;<>"()]+/).filter(Boolean);
+    if (terms.length === 0) return { matches: [] };
     const matches = await prisma.customer.findMany({
       where: {
-        OR: [
-          { name: { contains: query, mode: "insensitive" } },
-          { email: { contains: query, mode: "insensitive" } },
-        ],
+        AND: terms.map((t) => ({
+          OR: [
+            { name: { contains: t, mode: "insensitive" as const } },
+            { email: { contains: t, mode: "insensitive" as const } },
+          ],
+        })),
       },
+      orderBy: [{ name: "asc" }, { email: "asc" }],
       take: 5,
       select: { id: true, name: true, email: true, plan: true },
     });
@@ -250,12 +262,20 @@ export const toolHandlers: Record<string, ToolHandler> = {
   },
 
   async update_ticket({ ticketId, status, priority, tags }) {
+    const current = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { status: true, tags: true } });
+    if (!current) return { error: "ticket_not_found" };
+    // An escalation hands the ticket to a team; only a human moves it back out.
+    if (current.status === "ESCALATED" && status && status !== "ESCALATED") {
+      return { error: "ticket_escalated", message: "This ticket is escalated; its status stays ESCALATED." };
+    }
     const ticket = await prisma.ticket.update({
       where: { id: ticketId },
       data: {
         ...(status ? { status } : {}),
         ...(priority ? { priority } : {}),
-        ...(tags ? { tags } : {}),
+        // Added to the existing tags, never replacing them — a replace would drop the
+        // escalated:<team> tag escalate_ticket records.
+        ...(Array.isArray(tags) ? { tags: [...new Set([...current.tags, ...tags.map(String)])] } : {}),
       },
       select: { id: true, status: true, priority: true, tags: true },
     });
