@@ -28,9 +28,22 @@ vi.mock("../../lib/agent/context", () => ({
   maybeCompact: mocks.maybeCompact,
   liveContextTokens: () => 100,
 }));
-vi.mock("../../lib/prisma", () => ({ prisma: {} }));
+vi.mock("../../lib/prisma", () => ({
+  prisma: {
+    ticket: {
+      findUnique: vi.fn(async () => ({
+        id: "t1",
+        subject: "Where's my refund?",
+        channel: "EMAIL",
+        priority: "HIGH",
+        customer: { name: "Maya Chen", email: "maya.chen@example.com" },
+        messages: [{ role: "CUSTOMER", body: "Where is it?" }],
+      })),
+    },
+  },
+}));
 
-import { runAgent } from "../../lib/agent/loop";
+import { runAgent, runTicket } from "../../lib/agent/loop";
 
 // A fake MessageStream: the loop only uses .on("text", cb) and await .finalMessage().
 function fakeStream(finalMsg: unknown) {
@@ -104,5 +117,46 @@ describe("runAgent — hand-rolled tool-use loop", () => {
     expect(events).toContain("tool_use");
     expect(events).toContain("tool_result");
     expect(events).toContain("llm_call");
+  });
+});
+
+describe("runTicket", () => {
+  it("tells the agent today's date (UTC) alongside the ticket context", async () => {
+    mocks.streamMock.mockReturnValueOnce(fakeStream(endTurn));
+
+    await runTicket("t1", undefined, { now: new Date("2026-09-15T23:30:00-05:00") });
+
+    const first = mocks.streamMock.mock.calls[0][0].messages[0].content as string;
+    expect(first).toContain("today: 2026-09-16"); // 23:30 at UTC-5 is already the 16th in UTC
+    expect(first).toContain("ticketId: t1");
+    expect(first).toContain("customer email: maya.chen@example.com");
+  });
+});
+
+describe("runAgent latency", () => {
+  it("counts model time in modelLatencyMs and everything in totalLatencyMs", async () => {
+    let clock = 0;
+    const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => clock);
+    const timed = (msg: unknown) => {
+      const stream = {
+        on: vi.fn(() => stream),
+        finalMessage: vi.fn(async () => {
+          clock += 300; // each model call takes 300ms
+          return msg;
+        }),
+      };
+      return stream;
+    };
+    mocks.streamMock.mockReturnValueOnce(timed(toolUseTurn)).mockReturnValueOnce(timed(endTurn));
+    mocks.runTool.mockImplementationOnce(async () => {
+      clock += 500; // the tool takes 500ms
+      return { matches: [] };
+    });
+
+    const result = await runAgent({ initialUserMessage: "hi" });
+    nowSpy.mockRestore();
+
+    expect(result.modelLatencyMs).toBe(600);
+    expect(result.totalLatencyMs).toBe(1100);
   });
 });

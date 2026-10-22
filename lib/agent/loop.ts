@@ -54,6 +54,10 @@ export interface AgentRunResult {
   compactions: number;
   tokensSaved: number;
   hitIterationCap: boolean;
+  /** Wall time for the whole run: model calls + tool execution + compaction. */
+  totalLatencyMs: number;
+  /** Sum of the agent's model-call latencies (excludes tools and compaction). */
+  modelLatencyMs: number;
 }
 
 export async function runAgent(opts: {
@@ -83,6 +87,8 @@ export async function runAgent(opts: {
   let finalText = "";
   let stopReason: string | null = null;
   let hitIterationCap = true;
+  let modelLatencyMs = 0;
+  const runStartedAt = Date.now();
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     const startedAt = Date.now();
@@ -100,6 +106,7 @@ export async function runAgent(opts: {
     stream.on("text", (delta) => onEvent?.({ type: "text", text: delta }));
     const msg = await stream.finalMessage();
     const latencyMs = Date.now() - startedAt;
+    modelLatencyMs += latencyMs;
 
     const toolUses = msg.content.filter(
       (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
@@ -182,6 +189,8 @@ export async function runAgent(opts: {
     compactions,
     tokensSaved,
     hitIterationCap,
+    totalLatencyMs: Date.now() - runStartedAt,
+    modelLatencyMs,
   };
 }
 
@@ -190,11 +199,16 @@ export async function runAgent(opts: {
  * ticketId + customer name/email + the customer's message, but deliberately NOT the
  * customerId — so it must chain search_customer -> get_customer_context to resolve
  * identity (the orchestration proof).
+ *
+ * It also states today's date: policy windows ("within 30 days", "10 business days")
+ * are unanswerable without it. Evals pin `now` so their fixtures stay reproducible.
  */
 export async function runTicket(
   ticketId: string,
   onEvent?: (e: AgentEvent) => void,
+  opts: { now?: Date } = {},
 ): Promise<AgentRunResult> {
+  const now = opts.now ?? new Date();
   const ticket = await prisma.ticket.findUnique({
     where: { id: ticketId },
     include: { customer: true, messages: { orderBy: { createdAt: "asc" } } },
@@ -208,6 +222,7 @@ export async function runTicket(
 
   const initialUserMessage = [
     "New support ticket to resolve.",
+    `today: ${now.toISOString().slice(0, 10)}`,
     `ticketId: ${ticket.id}`,
     `subject: ${ticket.subject}`,
     `channel: ${ticket.channel}`,

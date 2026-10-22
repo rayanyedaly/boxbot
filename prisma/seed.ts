@@ -18,8 +18,10 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// Deterministic clock so seeds don't drift with wall-time. "Today" is 2026-06-16.
-const NOW = new Date("2026-06-16T12:00:00.000Z");
+// Anchored to wall time: the agent is told today's date, so "refunded 24 days ago"
+// must stay 24 days ago whenever the demo is seeded. (Evals pin their own clock —
+// see evals/fixtures/world.ts.)
+const NOW = new Date();
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 86_400_000);
 
 async function main() {
@@ -35,6 +37,7 @@ async function main() {
   }
 
   // --- Clean slate (delete in FK-safe order) ------------------------------
+  await prisma.compaction.deleteMany();
   await prisma.llmCall.deleteMany();
   await prisma.message.deleteMany();
   await prisma.ticket.deleteMany();
@@ -130,7 +133,7 @@ async function main() {
           {
             status: "PAID",
             amountUsd: "20.00",
-            description: "Pro plan — monthly (Jan 2026)",
+            description: "Pro plan — monthly",
             createdAt: daysAgo(150),
           },
           {
@@ -355,13 +358,13 @@ async function main() {
           {
             status: "PAID",
             amountUsd: "1200.00",
-            description: "Enterprise — 10 seats (May 2026)",
+            description: "Enterprise — 10 seats (monthly)",
             createdAt: daysAgo(42),
           },
           {
             status: "PAID",
             amountUsd: "1200.00",
-            description: "Enterprise — 10 seats (Jun 2026)",
+            description: "Enterprise — 10 seats (monthly)",
             createdAt: daysAgo(11),
           },
         ],

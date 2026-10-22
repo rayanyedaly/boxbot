@@ -15,9 +15,9 @@
 // returns is a token the model pays to read on the next turn (and that you log).
 
 import type Anthropic from "@anthropic-ai/sdk";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+// Relative (not "@/lib/prisma") so the tsx runners resolve it. One shared client means
+// a harness that points DATABASE_URL at another DB (evals) moves every query with it.
+import { prisma } from "../prisma";
 
 // --- API-facing definitions ------------------------------------------------
 

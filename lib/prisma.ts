@@ -2,7 +2,6 @@
 //
 // Shared PrismaClient singleton for the agent layer and (Phase 2) the app.
 // Guarded against Next's dev hot-reload spawning a new connection pool per reload.
-// Note: lib/agent/tools.ts intentionally keeps its own client (pre-authored).
 
 import { PrismaClient } from "@prisma/client";
 
