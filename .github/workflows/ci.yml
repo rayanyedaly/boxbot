@@ -4,6 +4,22 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Agent model to evaluate. Keep in sync with PRICES in lib/agent/cost.ts."
+        type: choice
+        options: ["default", "claude-sonnet-4-6", "claude-sonnet-5-5", "claude-haiku-4-5", "claude-haiku-5-5"]
+        default: "default"
+      trials:
+        description: "Trials per case"
+        type: choice
+        options: ["1", "2", "3"]
+        default: "1"
+
+# Least privilege by default; only the publish job can write.
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -33,7 +49,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
       - run: npm ci
       - run: npx prisma generate
@@ -41,3 +57,138 @@ jobs:
       - run: npm run lint
       - run: npm run test:run
       - run: npm run build
+
+  # Runs the gold set against the real model (evals/). It costs money, so spend is
+  # capped per run and superseded PR runs are cancelled. The API key is scoped to the
+  # one step that needs it (not npm install scripts), and this job can't write to the
+  # repo — publishing happens in a separate job that never installs or runs PR code.
+  evals:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    concurrency:
+      # PRs: a new push supersedes the old run. main / dispatch: never cancel a run that's
+      # already spending (a newer *pending* run still replaces an older pending one, so a
+      # burst of pushes evaluates the latest); dispatch comparisons don't collide with main.
+      group: evals-${{ github.event_name }}-${{ github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: inbox
+          POSTGRES_PASSWORD: inbox
+          POSTGRES_DB: inbox_eval
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U inbox -d inbox_eval"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      EVAL_DATABASE_URL: postgresql://inbox:inbox@localhost:5432/inbox_eval?schema=public
+      # 1 trial on PRs (cheap signal), 3 on main (pass^3 reliability), or the dispatch input.
+      TRIALS: ${{ github.event_name == 'push' && '3' || inputs.trials || '1' }}
+      MAX_USD: ${{ github.event_name == 'push' && '15' || '8' }}
+      MIN_PASS_RATE: ${{ vars.EVAL_MIN_PASS_RATE || '0' }}
+      MODEL: ${{ inputs.model }}
+      PUBLISH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
+    steps:
+      - name: Check for API key
+        id: key
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then echo "present=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            # Fork PRs get no secrets — skip rather than fail.
+            echo "::notice::No ANTHROPIC_API_KEY (fork PR?) — skipping evals."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            # On main / dispatch a missing key must be loud, or the README goes stale silently.
+            echo "::error::ANTHROPIC_API_KEY is missing on $GITHUB_EVENT_NAME"; exit 1
+          fi
+      - uses: actions/checkout@v4
+        if: steps.key.outputs.present == 'true'
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        if: steps.key.outputs.present == 'true'
+        with:
+          node-version: "22"
+          cache: npm
+      - if: steps.key.outputs.present == 'true'
+        run: npm ci
+      - if: steps.key.outputs.present == 'true'
+        run: npx prisma generate
+      - name: Run gold set
+        if: steps.key.outputs.present == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          args=(--trials "$TRIALS" --max-usd "$MAX_USD" --min-pass-rate "$MIN_PASS_RATE" --label ci)
+          if [ -n "$MODEL" ] && [ "$MODEL" != "default" ]; then args+=(--model "$MODEL"); fi
+          if [ "$PUBLISH" = "true" ]; then args+=(--readme); fi
+          npm run eval -- "${args[@]}"
+      - name: Job summary
+        if: always() && steps.key.outputs.present == 'true'
+        # ci.md is this run's report; it's untracked, so a crashed run can't show stale results.
+        run: cat evals/results/ci.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "No report produced." >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload results
+        if: always() && steps.key.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: evals/results/ci.*
+          if-no-files-found: ignore
+      - name: Stage results for publishing
+        if: success() && steps.key.outputs.present == 'true' && env.PUBLISH == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-publish
+          path: |
+            README.md
+            evals/results/latest.md
+            evals/results/latest.json
+
+  # The only job with write access. It runs no npm and no repo scripts: it downloads the
+  # eval job's README + results, commits them on top of the evaluated commit, and pushes
+  # (rebasing over anything that landed meanwhile).
+  publish-evals:
+    needs: evals
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.evals.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-evals
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: eval-publish
+          path: _publish
+      - name: Commit and push
+        run: |
+          cp _publish/README.md README.md
+          mkdir -p evals/results
+          cp _publish/evals/results/latest.md _publish/evals/results/latest.json evals/results/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md evals/results/latest.md evals/results/latest.json
+          git diff --cached --quiet && exit 0
+          git commit -m "evals: refresh results for ${GITHUB_SHA::7} [skip ci]"
+          for i in 1 2 3; do
+            git fetch origin main && git rebase origin/main && git push origin HEAD:main && exit 0
+            git rebase --abort 2>/dev/null || true
+            sleep $((i * 5))
+          done
+          exit 1
