@@ -12,6 +12,51 @@ and that record drives a per-ticket run trace and a cost dashboard.
 It is a working application backed by PostgreSQL, not a demo of mocked data: the agent's tools
 read and write real rows, and the UI reads the same database.
 
+## Eval results
+
+The agent is measured against a **gold set of 30 support tickets** with known-correct outcomes
+(refunds in and out of policy, disputes, recurring bugs, vague tickets, prompt injection, two
+customers with the same name, …). Every expected outcome is derived from the written policy in
+the knowledge base, not from what the agent happened to do. CI runs the gold set on every PR
+and push; the numbers below are refreshed automatically on `main`. See [Evals](#evals).
+
+<!-- EVALS:START -->
+
+| Metric | Value |
+|---|---|
+| Pass rate (pass@1) | **56.7%** (17/30 runs; 95% CI 39.2%–72.6%) |
+| Cost per ticket | $0.0441 |
+| Latency p50 / p95 / max | 24.8s / 35.4s / 36.0s |
+| Tool calls per ticket | 7.3 |
+
+dev split · 30 cases × 1 trial(s) · agent `claude-sonnet-4-6` (effort medium) · judge `claude-sonnet-5-5` · 2026-10-21 · `1c0fa9e`
+
+<details><summary>By category</summary>
+
+| Category | Passed |
+|---|---|
+| billing | 5/8 |
+| disputes-security | 4/4 |
+| technical | 2/4 |
+| how-to | 1/5 |
+| routing | 1/3 |
+| triage | 2/2 |
+| identity | 1/1 |
+| adversarial | 1/3 |
+
+</details>
+
+Full report: [`evals/results/latest.md`](evals/results/latest.md)
+
+<!-- EVALS:END -->
+
+**Baseline, before any eval-driven agent change** (Sonnet 4.6, 1 trial): dev **56.7%** (17/30) ·
+held-out **58.3%** (7/12) — [`baseline-dev`](evals/results/baseline-dev-sonnet-4-6.md) ·
+[`baseline-holdout`](evals/results/baseline-holdout-sonnet-4-6.md). The dominant failure is
+retrieval: KB and customer search match the whole query as one substring, so multi-word
+queries return nothing and the agent escalates or stalls instead of answering. How the judge
+was chosen: [`judge-agreement.md`](evals/results/judge-agreement.md).
+
 ---
 
 ## Contents
@@ -31,6 +76,7 @@ read and write real rows, and the UI reads the same database.
 - [Configuration](#configuration)
 - [Running locally](#running-locally)
 - [Testing & CI](#testing--ci)
+- [Evals](#evals)
 - [Current scope & limitations](#current-scope--limitations)
 
 ---
@@ -541,6 +587,70 @@ npm test            # watch mode
 **CI** (`.github/workflows/ci.yml`) runs on push to `main` and on PRs: a Postgres 16 service,
 Node 20, then `npm ci` → `prisma generate` → `typecheck` → `lint` → `test:run` → `build`. No
 secrets are required.
+
+---
+
+## Evals
+
+Unit tests prove the plumbing works; evals measure whether the agent makes the **right call**.
+`evals/` runs the real agent, on the real model, against a fixed gold set and grades every run.
+
+**Gold set** (`evals/cases.ts`) — 30 tickets across billing (including both sides of the
+30-day refund boundary), disputes & security, technical, how-to, routing, triage, identity, and
+adversarial cases (prompt injection, data exfiltration, a question the KB can't answer). Each
+case states the expected final status, which team (if any) it must be escalated to, whether a
+draft is required, which tools must or must not be used, and a rubric for the draft. Each case
+also lists the KB articles its outcome derives from, and a unit test enforces that those
+articles exist — "correct" means "follows written policy".
+
+**World** (`evals/fixtures/`) — a dedicated `inbox_eval` database holding 32 customers, their
+orders and ticket history, and 16 KB articles (including a superseded refund policy as a decoy).
+It is wiped and reloaded before **every** run, so cases can't leak state into each other, and
+"today" is pinned so date-window policies ("within 30 days") are reproducible.
+
+**Grading** — a run passes only if every check passes:
+
+- *Hard checks* (`evals/grade.ts`, deterministic, unit-tested): final status, escalation team,
+  draft staged or not, required / forbidden tools and a tool-call budget, required tags, draft
+  regexes (amounts, timelines, leaked data — each regex is tested against good and bad
+  phrasings). On every case: the run ends with `end_turn`, nothing is SENT, every tool call
+  targets the ticket's own customer and ticket, and no draft contains another customer's email.
+- *LLM judge* (`evals/judge.ts`): a separately pinned judge model sees the ticket, every tool
+  call with its result, the escalations, and the final state, and returns a reasoned pass/fail
+  per criterion: the case rubric plus four draft-wide ones (every fact grounded in tool results,
+  no claimed actions that didn't happen, addressed by name, polite and professional), and —
+  when the agent escalated — whether the handoff gives the receiving team what it needs.
+  Malformed judge replies are retried and fail closed; they can never count as a pass.
+
+**Metrics** — pass@1 with a Wilson 95% interval, pass^k (share of cases passing all k trials),
+cost per ticket (from the `LlmCall` rows, including compaction), and p50/p95/max latency.
+Transient infrastructure failures (rate limits, overload) and judge failures are retried, and if
+they persist the run is reported as *ungraded* rather than counted against the agent; any other
+error (e.g. a malformed request the agent built) is a failure.
+
+**Held-out split** (`evals/holdout.ts`) — 12 more tickets from customers the dev set never
+uses, answerable from the same KB, frozen before any eval-driven change to the agent. The dev
+set is what we look at while improving the agent; the held-out set only runs at milestones
+(`npm run eval -- --split holdout`) and its failures are never used to decide what to change. If
+the dev pass rate climbs and the held-out one doesn't, the agent is being tuned to the test.
+
+**Reading the numbers honestly.** With 30 cases, one case is ~3 percentage points and the 95%
+interval is roughly ±12–15 points, so a difference between two runs or two models smaller than
+that is noise, not a regression. pass^3 on `main` is the steadier signal.
+
+```bash
+docker compose exec db createdb -U inbox inbox_eval   # once
+npm run eval                        # all cases, 1 trial (~$1–2)
+npm run eval -- --trials 3          # adds pass^3
+npm run eval -- --filter refund     # subset by key
+npm run eval -- --model claude-sonnet-5-5   # compare agent models; judge stays fixed
+```
+
+Reports land in `evals/results/` (`<label>.md` + full per-run JSON with traces and judge
+reasoning). In CI, the `evals` job runs 1 trial on PRs and 3 on pushes to `main`, with a spend
+cap per run, and fails below the pass-rate gate (the `EVAL_MIN_PASS_RATE` repo variable). The
+API key is exposed only to the step that runs the eval, and that job has read-only repo access;
+on `main`, a separate job with no `npm` and no repo scripts commits the refreshed README block.
 
 ---
 
