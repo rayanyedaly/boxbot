@@ -9,7 +9,8 @@ import { decToNumber } from "./format";
 import { PRICES } from "./agent/cost";
 import { searchKb } from "./agent/kb-search";
 
-const AGENT_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
+import { AGENT_MODEL, SUMMARY_MODEL } from "./agent/llm";
+
 /** Input $/MTok of the agent model — used to estimate compaction savings. */
 const AGENT_INPUT_PRICE = PRICES[AGENT_MODEL]?.input ?? 3;
 
@@ -36,8 +37,6 @@ export async function ticketCostSummary(ticketId: string): Promise<TicketCost> {
   );
   return { costUsd: decToNumber(agg._sum.costUsd), calls: agg._count._all, tools };
 }
-
-const SUMMARY_MODEL = process.env.ANTHROPIC_SUMMARY_MODEL ?? "claude-haiku-4-5";
 
 export interface TraceStep {
   index: number;

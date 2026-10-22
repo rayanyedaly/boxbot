@@ -17,13 +17,19 @@ import { costUsd, type TokenUsage } from "./cost";
 // --- Config (env-driven; sane defaults) ------------------------------------
 
 /** The agent model. Default: current Sonnet (cost/capability balance for support). */
-export const AGENT_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
+export const AGENT_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5-5";
 /** Cheaper model used only to summarize older turns during compaction. */
-export const SUMMARY_MODEL = process.env.ANTHROPIC_SUMMARY_MODEL ?? "claude-haiku-4-5";
-/** Max output tokens per turn. Support drafts are short; tool turns are tiny. */
-export const MAX_TOKENS = Number(process.env.AGENT_MAX_TOKENS ?? 4096);
+export const SUMMARY_MODEL = process.env.ANTHROPIC_SUMMARY_MODEL ?? "claude-haiku-5-5";
+/**
+ * Max output tokens per turn. Drafts are short and tool turns tiny, but Sonnet 5.5
+ * thinks by default and thinking counts toward this cap — size it for both.
+ */
+export const MAX_TOKENS = Number(process.env.AGENT_MAX_TOKENS ?? 16000);
 /** Effort: cost/quality knob. "medium" is the usual sweet spot for support. */
 export const EFFORT = process.env.AGENT_EFFORT ?? "medium";
+/** Models that reject `output_config.effort` with a 400 (Haiku 4.5 predates effort). */
+const NO_EFFORT_MODELS = new Set(["claude-haiku-4-5"]);
+export const supportsEffort = (model: string) => !NO_EFFORT_MODELS.has(model);
 /** Runaway guard: hard cap on tool-use iterations for one ticket. */
 export const MAX_ITERATIONS = Number(process.env.AGENT_MAX_ITERATIONS ?? 8);
 /** Compaction trigger: compact when live context exceeds this many tokens. */

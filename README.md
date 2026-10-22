@@ -120,8 +120,9 @@ the agent-run trace panel (cost, latency, and the reconstructed tool chain), in 
 | Scripts | `tsx` (seed + agent CLI) | `^4.22.4` |
 | CI | GitHub Actions (Node 20 + Postgres 16 service) | — |
 
-Default models (configurable via env): the agent runs on **`claude-sonnet-4-6`**; context
-compaction summarizes with the cheaper **`claude-haiku-4-5`**.
+Default models (configurable via env): the agent runs on **`claude-sonnet-5-5`**; context
+compaction summarizes with the cheaper **`claude-haiku-5-5`**. Both think by default
+(adaptive thinking); `AGENT_EFFORT` sets how much.
 
 The project is a CommonJS package (`"type": "module"` is **not** set); the Vitest config is
 authored as `.mts` so its ESM-only dependency chain loads correctly.
@@ -235,7 +236,7 @@ identity.
 tokensSaved, hitIterationCap }`.
 
 The loop is configured entirely through environment variables (see [Configuration](#configuration)):
-`ANTHROPIC_MODEL`, `AGENT_MAX_TOKENS` (4096), `AGENT_EFFORT` (`medium`), `AGENT_MAX_ITERATIONS` (8).
+`ANTHROPIC_MODEL`, `AGENT_MAX_TOKENS` (16000 — thinking counts toward it), `AGENT_EFFORT` (`medium`), `AGENT_MAX_ITERATIONS` (8).
 
 ---
 
@@ -281,12 +282,15 @@ When it does compact, it:
 
 1. Picks a split point at the start of the last `RECENT_TURNS_KEPT` assistant turns, so the cut
    never lands between a `tool_use` block and its matching `tool_result`.
-2. Summarizes the older turns with `SUMMARY_MODEL` (`claude-haiku-4-5`) via a non-streaming
+2. Summarizes the older turns with `SUMMARY_MODEL` (`claude-haiku-5-5`) via a non-streaming
    `messages.create`, preserving the resolved customer, order facts, KB policy points, ticket
    history, and triage decisions. That summarizer call is itself logged as an `LlmCall`.
 3. Measures token counts **before and after** with the real `messages.countTokens` endpoint.
-4. Replaces the older turns with a single prepended summary message and keeps the recent turns
-   verbatim.
+4. Keeps the initial ticket message (ticketId, today's date, the customer's words) verbatim with
+   the summary appended to it, replacing everything after it up to the recent turns. A second
+   compaction replaces the earlier summary rather than stacking it. The recent turns are kept as
+   they were, minus their thinking blocks: a thinking block is only valid while everything before
+   it is unchanged, and compaction just rewrote that prefix.
 5. Writes a `Compaction` row (`tokensBefore`, `tokensAfter`, `tokensSaved`, summarizer `costUsd`,
    `model`). This write is best-effort (`.catch`) so it can never abort an in-flight run.
 
@@ -300,6 +304,8 @@ When it does compact, it:
 |---|---|---|---|---|
 | `claude-sonnet-4-6` | 3.00 | 15.00 | 3.75 | 0.30 |
 | `claude-haiku-4-5` | 1.00 | 5.00 | 1.25 | 0.10 |
+| `claude-sonnet-5-5` | 2.00 | 10.00 | 2.50 | 0.20 |
+| `claude-haiku-5-5` | 0.10 | 0.50 | 0.125 | 0.01 |
 
 `costUsd(model, usage)` prices input, output, cache-write, and cache-read tokens, rounds to 6
 decimal places (to fit `Decimal(10,6)`), and **throws on a model not in the map** so an unpriced
@@ -539,9 +545,9 @@ required for live use; everything else has a default.
 |---|---|---|
 | `DATABASE_URL` | Prisma datasource, tests | — (required) |
 | `ANTHROPIC_API_KEY` | `getAnthropic()` (live runs only) | — (required for runs; not needed in CI) |
-| `ANTHROPIC_MODEL` | agent model | `claude-sonnet-4-6` |
-| `ANTHROPIC_SUMMARY_MODEL` | compaction summarizer | `claude-haiku-4-5` |
-| `AGENT_MAX_TOKENS` | per-turn output cap | `4096` |
+| `ANTHROPIC_MODEL` | agent model | `claude-sonnet-5-5` |
+| `ANTHROPIC_SUMMARY_MODEL` | compaction summarizer | `claude-haiku-5-5` |
+| `AGENT_MAX_TOKENS` | per-turn output cap (thinking included) | `16000` |
 | `AGENT_EFFORT` | `output_config.effort` | `medium` |
 | `AGENT_MAX_ITERATIONS` | loop runaway guard | `8` |
 | `COMPACTION_TOKEN_THRESHOLD` | compaction trigger | `12000` |

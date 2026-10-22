@@ -23,6 +23,7 @@ import {
   AGENT_MODEL,
   MAX_TOKENS,
   EFFORT,
+  supportsEffort,
   MAX_ITERATIONS,
 } from "./llm";
 
@@ -100,7 +101,7 @@ export async function runAgent(opts: {
       system,
       tools,
       messages,
-      output_config: { effort: EFFORT },
+      ...(supportsEffort(AGENT_MODEL) ? { output_config: { effort: EFFORT } } : {}),
     } as Parameters<typeof client.messages.stream>[0]);
 
     stream.on("text", (delta) => onEvent?.({ type: "text", text: delta }));
@@ -165,7 +166,14 @@ export async function runAgent(opts: {
 
     // Compact older turns if the live context has grown past the threshold.
     const liveTokens = liveContextTokens(msg.usage) + msg.usage.output_tokens;
-    const comp = await maybeCompact({ ticketId, system, tools, messages, liveTokens });
+    const comp = await maybeCompact({
+      ticketId,
+      system,
+      tools,
+      messages,
+      initialMessage: initialUserMessage,
+      liveTokens,
+    });
     totalCostUsd += comp.summaryCostUsd;
     if (comp.compacted) {
       messages = comp.messages;

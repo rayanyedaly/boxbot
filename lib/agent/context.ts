@@ -65,9 +65,11 @@ export async function maybeCompact(args: {
   system: Anthropic.TextBlockParam[] | string;
   tools: Anthropic.Tool[];
   messages: Anthropic.MessageParam[];
+  /** The run's first user message, kept verbatim through every compaction. */
+  initialMessage: string;
   liveTokens: number;
 }): Promise<CompactionResult> {
-  const { ticketId, system, tools, messages, liveTokens } = args;
+  const { ticketId, system, tools, messages, initialMessage, liveTokens } = args;
   const client = getAnthropic();
 
   const noop = (n: number): CompactionResult => ({
@@ -87,7 +89,10 @@ export async function maybeCompact(args: {
   const splitIndex = assistantIdx[assistantIdx.length - RECENT_TURNS_KEPT];
 
   const older = messages.slice(0, splitIndex); // starts at the initial user turn
-  const recent = messages.slice(splitIndex); // starts at an assistant turn
+  // Starts at an assistant turn. Thinking blocks are dropped from it: a thinking block
+  // is only valid while everything sent before it is unchanged (Sonnet/Haiku 5.5 reject
+  // a replay after an edit), and compaction just rewrote everything before these turns.
+  const recent = messages.slice(splitIndex).map(withoutThinking);
 
   // Measure the honest "before" on the current array.
   const before = await client.messages.countTokens({
@@ -96,12 +101,17 @@ export async function maybeCompact(args: {
     tools,
     messages,
   });
+  // liveTokens is an estimate from the last call's usage (it includes that turn's
+  // thinking, which may not cost as much when replayed); the real count decides.
+  if (before.input_tokens <= COMPACTION_TOKEN_THRESHOLD) return noop(before.input_tokens);
 
   // Summarize the older turns with the cheaper model — and LOG that call.
   const startedAt = Date.now();
   const summaryMsg = await client.messages.create({
     model: SUMMARY_MODEL,
-    max_tokens: 1024,
+    // Haiku 5.5 thinks by default (thinking counts toward this cap) and its tokenizer
+    // counts ~30% more tokens than Haiku 4.5's — leave room for both.
+    max_tokens: 4096,
     system: SUMMARY_SYSTEM,
     messages: [{ role: "user", content: renderTranscript(older) }],
   });
@@ -117,13 +127,22 @@ export async function maybeCompact(args: {
     .map((b) => b.text)
     .join("\n")
     .trim();
+  // A summary cut short (e.g. thinking used up the cap) or empty would silently drop the
+  // older turns. Keep them instead; the spend still counts.
+  if (summaryMsg.stop_reason !== "end_turn" || !summaryText) {
+    return { ...noop(before.input_tokens), summaryCostUsd };
+  }
 
+  // The initial ticket message (ticketId, today's date, the customer's words) is kept
+  // verbatim — a summary can paraphrase away the exact ids the tools need — with the
+  // summary appended. It's rebuilt from the original every time, so a second compaction
+  // replaces the first summary (which the new one already covers).
   const compactedMessages: Anthropic.MessageParam[] = [
     {
       role: "user",
       content:
-        "[Earlier conversation compacted to save context. Summary of what was " +
-        `established so far:]\n${summaryText}`,
+        `${initialMessage}\n\n[Earlier conversation compacted to save context. ` +
+        `Summary of what was established so far:]\n${summaryText}`,
     },
     ...recent,
   ];
@@ -159,6 +178,11 @@ export async function maybeCompact(args: {
     tokensSaved: before.input_tokens - after.input_tokens,
     summaryCostUsd,
   };
+}
+
+function withoutThinking(m: Anthropic.MessageParam): Anthropic.MessageParam {
+  if (m.role !== "assistant" || typeof m.content === "string") return m;
+  return { ...m, content: m.content.filter((b) => b.type !== "thinking" && b.type !== "redacted_thinking") };
 }
 
 /** Flatten messages into a plain-text transcript for the summarizer to read. */

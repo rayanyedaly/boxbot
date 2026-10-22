@@ -18,8 +18,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../lib/agent/llm", () => ({
   getAnthropic: () => ({ messages: { stream: mocks.streamMock } }),
   logLlmCall: mocks.logLlmCall,
-  AGENT_MODEL: "claude-sonnet-4-6",
-  MAX_TOKENS: 4096,
+  AGENT_MODEL: "claude-sonnet-5-5",
+  MAX_TOKENS: 16000,
+  supportsEffort: () => true,
   EFFORT: "medium",
   MAX_ITERATIONS: 3, // small cap so the runaway test is fast; happy path needs only 2
 }));

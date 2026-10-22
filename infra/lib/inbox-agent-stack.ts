@@ -49,7 +49,7 @@ export class InboxAgentStack extends cdk.Stack {
     // price map (lib/agent/cost.ts); override with `-c model=…`.
     const model =
       (this.node.tryGetContext("model") as string | undefined) ??
-      "claude-sonnet-4-6";
+      "claude-sonnet-5-5";
 
     // --- Network ------------------------------------------------------------
     // Public subnets for the ALB + task, isolated subnets for the DB. No NAT.

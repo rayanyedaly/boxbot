@@ -71,7 +71,7 @@ async function main() {
 
   const { prisma } = await import("../lib/prisma");
   const { runTicket } = await import("../lib/agent/loop");
-  const { AGENT_MODEL, SUMMARY_MODEL, EFFORT } = await import("../lib/agent/llm");
+  const { AGENT_MODEL, SUMMARY_MODEL, EFFORT, supportsEffort } = await import("../lib/agent/llm");
   const { PRICES } = await import("../lib/agent/cost");
   const { CASES } = await import("./cases");
   const { CUSTOMERS, EVAL_NOW } = await import("./fixtures/world");
@@ -359,7 +359,7 @@ async function main() {
   }
 
   const summary = report.summarize(
-    { label, split, model: AGENT_MODEL, effort: EFFORT, judgeModel: JUDGE_MODEL, gitSha, startedAt, trials, incomplete },
+    { label, split, model: AGENT_MODEL, effort: supportsEffort(AGENT_MODEL) ? EFFORT : "n/a", judgeModel: JUDGE_MODEL, gitSha, startedAt, trials, incomplete },
     cases,
     graded,
   );
