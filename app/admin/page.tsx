@@ -21,15 +21,16 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
-  const [visitors, named, today, thisMonth, rows] = await Promise.all([
+  const [visitors, named, networks, today, thisMonth, rows] = await Promise.all([
     prisma.demoVisitor.count(),
     prisma.demoVisitor.count({ where: { OR: [{ name: { not: null } }, { company: { not: null } }] } }),
+    prisma.demoVisitor.groupBy({ by: ["ipHash"] }).then((g) => g.length),
     prisma.demoRun.aggregate({ where: { startedAt: { gte: day } }, _sum: { costUsd: true }, _count: { _all: true } }),
     prisma.demoRun.aggregate({ where: { startedAt: { gte: month } }, _sum: { costUsd: true }, _count: { _all: true } }),
     prisma.$queryRaw<
-      { id: string; name: string | null; company: string | null; firstSeen: Date; lastSeen: Date; runs: number; spend: string; tickets: number }[]
+      { id: string; name: string | null; company: string | null; ipHash: string; firstSeen: Date; lastSeen: Date; runs: number; spend: string; tickets: number }[]
     >`
-      SELECT v."id", v."name", v."company", v."firstSeen", v."lastSeen",
+      SELECT v."id", v."name", v."company", v."ipHash", v."firstSeen", v."lastSeen",
              COUNT(r."id")::int AS runs, COALESCE(SUM(r."costUsd"), 0) AS spend,
              (SELECT COUNT(*)::int FROM "Ticket" t WHERE t."visitorId" = v."id") AS tickets
       FROM "DemoVisitor" v LEFT JOIN "DemoRun" r ON r."visitorId" = v."id"
@@ -39,7 +40,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   ]);
 
   const stats = [
-    { label: "VISITORS", value: String(visitors), sub: `${named} left a name or company` },
+    { label: "VISITORS", value: String(visitors), sub: `${named} left a name or company · ${networks} networks` },
     { label: "RUNS TODAY", value: String(today._count._all), sub: formatUsd(decToNumber(today._sum.costUsd)) },
     { label: "RUNS THIS MONTH", value: String(thisMonth._count._all), sub: formatUsd(decToNumber(thisMonth._sum.costUsd)) },
   ];
@@ -65,6 +66,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <tr>
               <th className="px-4 py-2 font-semibold">Name</th>
               <th className="px-4 py-2 font-semibold">Company</th>
+              <th className="px-4 py-2 font-semibold" title="First 6 characters of the salted IP hash: same value = same network">
+                Network
+              </th>
               <th className="px-4 py-2 font-semibold">First seen</th>
               <th className="px-4 py-2 font-semibold">Last seen</th>
               <th className="px-4 py-2 text-right font-semibold">Runs</th>
@@ -75,7 +79,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-muted">
+                <td colSpan={8} className="px-4 py-8 text-center text-muted">
                   No visitors yet.
                 </td>
               </tr>
@@ -84,6 +88,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <tr key={r.id} className="border-t border-border-2">
                 <td className="px-4 py-2 text-ink">{r.name ?? <span className="text-faint">anonymous</span>}</td>
                 <td className="px-4 py-2 text-ink-2">{r.company ?? <span className="text-faint">—</span>}</td>
+                <td className="px-4 py-2 font-mono text-[11px] text-ink-3">{r.ipHash.slice(0, 6)}</td>
                 <td className="px-4 py-2 font-mono text-[11px] text-muted">{r.firstSeen.toISOString().slice(0, 16).replace("T", " ")}</td>
                 <td className="px-4 py-2 font-mono text-[11px] text-muted">{timeAgo(r.lastSeen)}</td>
                 <td className="px-4 py-2 text-right font-mono text-ink">{r.runs}</td>

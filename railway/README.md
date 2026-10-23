@@ -59,9 +59,11 @@ Read the plan before every apply.
    domain or variable deletions.
 5. **Check the IP header once.** The per-IP limits hash `X-Real-IP` (falling back to the
    right-most `X-Forwarded-For` hop). Railway's edge is expected to set it. Run a couple
-   of agent runs from two networks (e.g. laptop and phone hotspot), then check on
-   `/admin` that they appear as different visitors whose runs count separately. If every
-   visitor shares one IP hash, the per-IP caps act globally; fix the header choice in
+   of requests from two networks (e.g. laptop and phone hotspot), then check the Network
+   column on `/admin`: two networks should show two values. Also send one request with a
+   forged `X-Real-IP` header; it should show your real network's value, not a new one.
+   If every visitor shares one value, the per-IP caps act globally; if the forged header
+   gets its own value, the header is spoofable. Either way, fix the header choice in
    `lib/demo/visitor.ts` before sharing the link.
 6. **Deploys.** Pushes to `main` build both services from the Dockerfile. The watch
    patterns in `railway.ts` skip changes that only touch evals, docs or `infra/`, which
