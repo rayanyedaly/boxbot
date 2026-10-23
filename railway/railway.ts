@@ -48,7 +48,8 @@ export default defineRailway(() => {
     healthcheck: "/api/health",
     healthcheckTimeout: 300, // first boot runs migrations + the seed before the server listens
     replicas: { [REGION]: 1 },
-    deploy: { restartPolicyType: "ON_FAILURE", restartPolicyMaxRetries: 5 },
+    // Restarts on failure (Railway's default policy, which it stores as unset), up to 5 times.
+    deploy: { restartPolicyMaxRetries: 5 },
     env: {
       DATABASE_URL: db.env.DATABASE_URL,
       PORT: "3000", // pin it, so the server, healthcheck and generated domain agree
@@ -74,8 +75,9 @@ export default defineRailway(() => {
     source: github(REPO, { branch: "main" }),
     build: image,
     replicas: { [REGION]: 1 },
-    // A failed reset is retried; the reseed is idempotent (it wipes and recreates).
-    deploy: { cronSchedule: "0 8 * * *", restartPolicyType: "ON_FAILURE", restartPolicyMaxRetries: 3 },
+    // Railway doesn't restart cron jobs; a failed reset (e.g. a run admitted mid-reset)
+    // simply runs again the next night. The reseed is idempotent.
+    deploy: { cronSchedule: "0 8 * * *", restartPolicyType: "NEVER" },
     env: {
       DATABASE_URL: db.env.DATABASE_URL,
       RUN_MODE: "reset",

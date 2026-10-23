@@ -45,7 +45,7 @@ async function main() {
   // In demo-reset the wipe runs in one transaction holding the demo's advisory lock
   // (lib/demo/runs.ts DEMO_LOCK_KEY), the lock run admission and ticket creation take,
   // so nothing new lands mid-wipe. A run admitted after the wait above aborts the
-  // reset; the cron's restart policy retries it.
+  // reset; the cron runs again the next night.
   if (demoReset) {
     // Let in-flight agent runs finish first (they write to the tickets about to go).
     // Runs older than the demo's stale window are dead and don't hold the reset.

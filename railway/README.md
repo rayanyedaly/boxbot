@@ -38,9 +38,13 @@ Read the plan before every apply.
    the variables redeploys it.
 
    On Windows, if the plan fails with "requires Railway CLI 5.42.1 or newer", the SDK
-   couldn't find the CLI binary. Point `_` at it, for example
-   `_="C:/Program Files/nodejs/node_modules/@railway/cli/bin/railway.exe" npm run railway:plan`,
-   or run from WSL.
+   couldn't find the CLI binary (it runs `$env:_ --version`, falling back to `railway`,
+   which Windows can't resolve without `.exe`). Point `_` at the binary from PowerShell
+   (Git Bash overwrites `_` on every command):
+   ```powershell
+   $env:_ = 'C:\Program Files\nodejs\node_modules\@railway\cli\bin\railway.exe'
+   railway config plan --file railway/railway.ts
+   ```
 3. **Secrets.** These are `preserve()` in the file, so they never enter git. Set them once
    on the `web` service:
    ```bash
