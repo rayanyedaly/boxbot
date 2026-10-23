@@ -53,17 +53,20 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-# Prisma: schema + migrations + CLI + engines, so the entrypoint can run
-# `migrate deploy` (and `db seed` when SEED_ON_START=true) at boot.
+# Prisma: schema + migrations + the generated client, so the entrypoint can run
+# `migrate deploy` (and `db seed`) at boot.
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 # package.json carries the `prisma.seed` hook (tsx prisma/seed.ts).
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 
-# tsx for the optional one-shot demo seed.
-RUN npm install -g tsx@4
+# The Prisma CLI (with its own dependency tree, which copying node_modules/prisma alone
+# leaves out) at exactly the lockfile's version, plus tsx for the seed.
+COPY --from=builder /app/package-lock.json /tmp/package-lock.json
+RUN PRISMA_VERSION=$(node -p "require('/tmp/package-lock.json').packages['node_modules/prisma'].version") \
+  && npm install -g "prisma@${PRISMA_VERSION}" tsx@4 \
+  && rm /tmp/package-lock.json
 
 COPY --chown=nextjs:nodejs docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh

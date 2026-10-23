@@ -23,7 +23,7 @@ fi
 echo "[entrypoint] applying migrations (prisma migrate deploy)…"
 attempt=1
 max_attempts=10
-until node node_modules/prisma/build/index.js migrate deploy; do
+until prisma migrate deploy; do
   if [ "$attempt" -ge "$max_attempts" ]; then
     echo "[entrypoint] migrate deploy failed after ${max_attempts} attempts; giving up." >&2
     exit 1
@@ -33,12 +33,33 @@ until node node_modules/prisma/build/index.js migrate deploy; do
   sleep 5
 done
 
+# RUN_MODE=reset is the public demo's nightly cron (railway/railway.ts): reseed with
+# fresh dates, keep cost history and visitor counts, then exit instead of serving.
+if [ "$RUN_MODE" = "reset" ]; then
+  echo "[entrypoint] nightly demo reset (SEED_MODE=demo-reset)…"
+  SEED_MODE=demo-reset exec prisma db seed
+fi
+
+# On Railway this image is the public demo: refuse to run with the guardrails off by
+# accident (DEMO_MODE unset or misspelled), since that would leave runs unlimited.
+if [ -n "$RAILWAY_ENVIRONMENT" ] && [ "$DEMO_MODE" != "true" ] && [ "$DEMO_MODE" != "false" ]; then
+  echo "[entrypoint] on Railway, DEMO_MODE must be set to true or false; refusing to start." >&2
+  exit 1
+fi
+
+# The public demo hashes client IPs with this salt; refuse to serve without it rather
+# than fail on the first visitor's request.
+if [ "$DEMO_MODE" = "true" ] && [ -z "$DEMO_IP_SALT" ]; then
+  echo "[entrypoint] DEMO_MODE=true requires DEMO_IP_SALT; refusing to start." >&2
+  exit 1
+fi
+
 if [ "$SEED_ON_START" = "true" ]; then
   # SEED_SKIP_IF_POPULATED makes the seed a no-op when data already exists, so a
   # task restart/replacement can never wipe a populated DB. (Local `npm run
   # db:seed`, without this flag, keeps its clean-slate reseed behavior.)
   echo "[entrypoint] seeding demo data (only if the DB is empty)…"
-  SEED_SKIP_IF_POPULATED=true node node_modules/prisma/build/index.js db seed
+  SEED_SKIP_IF_POPULATED=true prisma db seed
 fi
 
 echo "[entrypoint] starting Next.js…"

@@ -24,3 +24,6 @@ npm-debug.log*
 # Don't recurse the build files into their own context
 Dockerfile
 .dockerignore
+
+# Railway IaC is applied from the CLI, never part of the image
+railway
