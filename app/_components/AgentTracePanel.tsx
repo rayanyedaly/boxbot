@@ -176,7 +176,10 @@ export function AgentTracePanel({
   }
 
   return (
-    <aside data-tour="trace" className="flex h-full w-[374px] flex-none flex-col border-l border-border bg-surface">
+    <aside
+      data-tour="trace"
+      className="flex w-full flex-col border-t border-border bg-surface pb-[68px] lg:h-full lg:w-[374px] lg:flex-none lg:border-l lg:border-t-0 lg:pb-0"
+    >
       {/* Header */}
       <div className="flex h-[54px] flex-none items-center gap-2 border-b border-border-2 px-[18px]">
         <span className="text-ink-3">
@@ -186,7 +189,7 @@ export function AgentTracePanel({
         <button
           type="button"
           onClick={() => setCollapsed(true)}
-          className="text-faint hover:text-ink-3"
+          className="hidden text-faint hover:text-ink-3 lg:block"
           aria-label="Collapse trace"
         >
           <IconPanelCollapse size={16} />
@@ -203,7 +206,7 @@ export function AgentTracePanel({
 
       {/* Timeline */}
       <div
-        className="min-h-0 flex-1 overflow-y-auto px-[18px] pt-1"
+        className="px-[18px] pt-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
         aria-live="polite"
         aria-busy={running}
       >
@@ -269,13 +272,15 @@ export function AgentTracePanel({
       </div>
 
       {/* Footer */}
-      <div className="flex flex-none items-center justify-between gap-3 border-t border-border-2 px-[18px] py-3">
+      {/* On phones a bar fixed to the bottom of the screen, so Run is in reach from
+          anywhere on the ticket (the panel reserves its height with pb-[68px]). */}
+      <div className="fixed inset-x-0 bottom-0 z-30 flex flex-none items-center justify-between gap-3 border-t border-border-2 bg-surface px-[18px] py-3 shadow-[0_-4px_16px_rgba(8,12,24,0.08)] lg:static lg:z-auto lg:shadow-none">
         <button
           type="button"
           data-tour="run-agent"
           onClick={run}
           disabled={running || (!!quota && (quota.runsLeft === 0 || quota.resting !== null))}
-          className="rounded-md bg-accent px-3 py-1.5 text-[12px] font-semibold text-on-accent transition hover:opacity-90 disabled:opacity-60"
+          className="h-10 rounded-md bg-accent px-4 text-[13px] font-semibold text-on-accent transition hover:opacity-90 disabled:opacity-60 lg:h-auto lg:px-3 lg:py-1.5 lg:text-[12px]"
         >
           {running ? "Running…" : trace.hasRun ? "Re-run agent" : "Run agent"}
         </button>

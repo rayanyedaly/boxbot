@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Sidebar } from "@/app/_components/Sidebar";
+import { AppShell } from "@/app/_components/AppShell";
 import { DemoTour } from "@/app/_components/DemoTour";
 import { demoEnabled, demoLimits } from "@/lib/demo/config";
 import { AGENT_MODEL } from "@/lib/agent/llm";
@@ -51,11 +52,11 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: noFlash }} />
       </head>
-      <body className="h-screen overflow-hidden">
-        <div className="flex h-full">
-          <Sidebar />
-          <main className="h-full min-w-0 flex-1 overflow-y-auto">{children}</main>
-        </div>
+      {/* dvh, not vh: on phones vh includes the area under the browser's toolbars. */}
+      <body className="h-dvh overflow-hidden">
+        <AppShell sidebar={<Sidebar />} demo={demoEnabled()}>
+          {children}
+        </AppShell>
         {demoEnabled() && <DemoTour runsLimit={demoLimits().runsPerVisitor} model={modelLabel(AGENT_MODEL)} />}
       </body>
     </html>

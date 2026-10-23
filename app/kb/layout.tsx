@@ -6,9 +6,9 @@ export const dynamic = "force-dynamic";
 export default async function KbLayout({ children }: { children: React.ReactNode }) {
   const groups = await kbList();
   return (
-    <div className="flex h-full">
+    <div className="flex h-full flex-col lg:flex-row">
       <KbRail groups={groups} />
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="min-h-0 min-w-0 flex-1">{children}</div>
     </div>
   );
 }

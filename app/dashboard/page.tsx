@@ -18,7 +18,7 @@ const MODEL_ROLE: Record<string, string> = {
 
 function Card({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-[11px] border border-border bg-surface px-5 py-[18px]">
+    <section className="min-w-0 rounded-[11px] border border-border bg-surface px-4 py-4 sm:px-5 sm:py-[18px]">
       <div className="mb-3 flex items-baseline gap-2">
         <h2 className="text-[13.5px] font-semibold text-ink">{title}</h2>
         {sub && <span className="font-mono text-[10.5px] text-faint">{sub}</span>}
@@ -35,14 +35,14 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="sticky top-0 z-10 flex h-14 flex-none items-center gap-3 border-b border-border bg-surface px-6">
+      <header className="sticky top-0 z-10 flex h-14 flex-none items-center gap-3 border-b border-border bg-surface px-4 md:px-6">
         <h1 className="text-base font-semibold text-ink">Dashboard</h1>
         <span className="font-mono text-[11px] text-muted">cost &amp; observability</span>
       </header>
 
-      <div className="flex-1 space-y-3.5 px-6 py-[22px]">
+      <div className="flex-1 space-y-3.5 px-4 py-4 md:px-6 md:py-[22px]">
         {/* KPIs */}
-        <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5 lg:grid-cols-4">
           <StatCard label="TOTAL SPEND" value={formatUsd(s.totalSpend)} sub={`${s.totalCalls} model calls`} />
           <StatCard label="TICKETS RESOLVED" value={String(s.resolvedCount)} sub={`of ${s.totalTickets} tickets`} />
           <StatCard label="AVG COST / RESOLVED" value={formatUsd(s.avgCostPerResolved)} sub="per resolved ticket" />
@@ -85,7 +85,7 @@ export default async function DashboardPage() {
               {s.spendByModel.map((m, i) => (
                 <div key={m.model} className="space-y-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-[12px] font-semibold text-ink">{m.model}</span>
+                    <span className="min-w-0 truncate font-mono text-[12px] font-semibold text-ink">{m.model}</span>
                     <span className="rounded border border-border px-1.5 text-[10.5px] text-faint">
                       {MODEL_ROLE[m.model] ?? "model"}
                     </span>
@@ -104,8 +104,8 @@ export default async function DashboardPage() {
           </Card>
 
           <Card title="Recent agent runs">
-            <div className="grid grid-cols-[88px_minmax(0,1fr)_104px_64px] gap-3 border-b border-border-2 pb-2 font-mono text-[9px] tracking-[0.05em] text-faint">
-              <span>TICKET</span>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_64px] gap-3 border-b border-border-2 pb-2 font-mono text-[9px] tracking-[0.05em] text-faint sm:grid-cols-[88px_minmax(0,1fr)_104px_64px]">
+              <span className="hidden sm:block">TICKET</span>
               <span>SUBJECT</span>
               <span>STATUS</span>
               <span className="text-right">COST</span>
@@ -118,9 +118,9 @@ export default async function DashboardPage() {
                 key={r.ticketId}
                 href={`/tickets/${r.ticketId}`}
                 aria-label={r.subject}
-                className="grid grid-cols-[88px_minmax(0,1fr)_104px_64px] items-center gap-3 border-b border-border-2 py-[11px] transition hover:bg-inset"
+                className="grid grid-cols-[minmax(0,1fr)_auto_64px] items-center gap-3 border-b border-border-2 py-[11px] transition hover:bg-inset sm:grid-cols-[88px_minmax(0,1fr)_104px_64px]"
               >
-                <span className="font-mono text-[11px] text-muted">{r.ticketId.slice(0, 8)}</span>
+                <span className="hidden font-mono text-[11px] text-muted sm:block">{r.ticketId.slice(0, 8)}</span>
                 <span className="truncate text-[13px] text-ink">{r.subject}</span>
                 <StatusPill status={r.status} />
                 <span className="text-right font-mono text-[11.5px] font-semibold text-ink">

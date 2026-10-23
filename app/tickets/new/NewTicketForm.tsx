@@ -130,7 +130,7 @@ export function NewTicketForm({ personas, limits }: { personas: Persona[]; limit
         </p>
       )}
 
-      <div className="flex items-center justify-end gap-3">
+      <div className="flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
         <span className="text-[12px] text-ink-3">Creating a ticket is free. Running the agent uses one of your runs.</span>
         <button
           type="submit"

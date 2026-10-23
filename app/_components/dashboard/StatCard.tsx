@@ -11,9 +11,9 @@ export function StatCard({
   good?: boolean;
 }) {
   return (
-    <div className="rounded-[11px] border border-border bg-surface px-[17px] py-[15px]">
+    <div className="min-w-0 rounded-[11px] border border-border bg-surface px-3.5 py-3 sm:px-[17px] sm:py-[15px]">
       <div className="font-mono text-[9.5px] tracking-[0.06em] text-faint">{label}</div>
-      <div className="mt-2 font-mono text-[26px] font-semibold tracking-[-0.02em] text-ink">
+      <div className="mt-2 truncate font-mono text-[21px] font-semibold tracking-[-0.02em] text-ink sm:text-[26px]">
         {value}
       </div>
       {sub && (

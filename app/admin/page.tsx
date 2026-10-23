@@ -47,11 +47,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-14 flex-none items-center border-b border-border bg-surface px-6">
+      <header className="flex h-14 flex-none items-center border-b border-border bg-surface px-4 md:px-6">
         <h1 className="text-base font-semibold text-ink">Demo visitors</h1>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto p-6">
-        <div className="grid grid-cols-3 gap-3">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="grid gap-3 sm:grid-cols-3">
           {stats.map((s) => (
             <div key={s.label} className="rounded-[11px] border border-border bg-surface px-4 py-3">
               <div className="font-mono text-[9.5px] font-semibold tracking-[0.06em] text-faint">{s.label}</div>
@@ -61,43 +61,45 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           ))}
         </div>
 
-        <table className="mt-5 w-full overflow-hidden rounded-[11px] border border-border bg-surface text-left text-[12.5px]">
-          <thead className="bg-surface-2 font-mono text-[9.5px] uppercase tracking-[0.06em] text-faint">
-            <tr>
-              <th className="px-4 py-2 font-semibold">Name</th>
-              <th className="px-4 py-2 font-semibold">Company</th>
-              <th className="px-4 py-2 font-semibold" title="First 6 characters of the salted IP hash: same value = same network">
-                Network
-              </th>
-              <th className="px-4 py-2 font-semibold">First seen</th>
-              <th className="px-4 py-2 font-semibold">Last seen</th>
-              <th className="px-4 py-2 text-right font-semibold">Runs</th>
-              <th className="px-4 py-2 text-right font-semibold">Tickets</th>
-              <th className="px-4 py-2 text-right font-semibold">Spend</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 && (
+        <div className="mt-5 overflow-x-auto rounded-[11px] border border-border">
+          <table className="w-full min-w-[720px] whitespace-nowrap bg-surface text-left text-[12.5px]">
+            <thead className="bg-surface-2 font-mono text-[9.5px] uppercase tracking-[0.06em] text-faint">
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-muted">
-                  No visitors yet.
-                </td>
+                <th className="px-4 py-2 font-semibold">Name</th>
+                <th className="px-4 py-2 font-semibold">Company</th>
+                <th className="px-4 py-2 font-semibold" title="First 6 characters of the salted IP hash: same value = same network">
+                  Network
+                </th>
+                <th className="px-4 py-2 font-semibold">First seen</th>
+                <th className="px-4 py-2 font-semibold">Last seen</th>
+                <th className="px-4 py-2 text-right font-semibold">Runs</th>
+                <th className="px-4 py-2 text-right font-semibold">Tickets</th>
+                <th className="px-4 py-2 text-right font-semibold">Spend</th>
               </tr>
-            )}
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-border-2">
-                <td className="px-4 py-2 text-ink">{r.name ?? <span className="text-faint">anonymous</span>}</td>
-                <td className="px-4 py-2 text-ink-2">{r.company ?? <span className="text-faint">—</span>}</td>
-                <td className="px-4 py-2 font-mono text-[11px] text-ink-3">{r.ipHash.slice(0, 6)}</td>
-                <td className="px-4 py-2 font-mono text-[11px] text-muted">{r.firstSeen.toISOString().slice(0, 16).replace("T", " ")}</td>
-                <td className="px-4 py-2 font-mono text-[11px] text-muted">{timeAgo(r.lastSeen)}</td>
-                <td className="px-4 py-2 text-right font-mono text-ink">{r.runs}</td>
-                <td className="px-4 py-2 text-right font-mono text-ink">{r.tickets}</td>
-                <td className="px-4 py-2 text-right font-mono text-ink-2">{formatUsd(decToNumber(r.spend))}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-muted">
+                    No visitors yet.
+                  </td>
+                </tr>
+              )}
+              {rows.map((r) => (
+                <tr key={r.id} className="border-t border-border-2">
+                  <td className="px-4 py-2 text-ink">{r.name ?? <span className="text-faint">anonymous</span>}</td>
+                  <td className="px-4 py-2 text-ink-2">{r.company ?? <span className="text-faint">—</span>}</td>
+                  <td className="px-4 py-2 font-mono text-[11px] text-ink-3">{r.ipHash.slice(0, 6)}</td>
+                  <td className="px-4 py-2 font-mono text-[11px] text-muted">{r.firstSeen.toISOString().slice(0, 16).replace("T", " ")}</td>
+                  <td className="px-4 py-2 font-mono text-[11px] text-muted">{timeAgo(r.lastSeen)}</td>
+                  <td className="px-4 py-2 text-right font-mono text-ink">{r.runs}</td>
+                  <td className="px-4 py-2 text-right font-mono text-ink">{r.tickets}</td>
+                  <td className="px-4 py-2 text-right font-mono text-ink-2">{formatUsd(decToNumber(r.spend))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

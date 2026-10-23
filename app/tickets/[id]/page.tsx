@@ -38,15 +38,15 @@ export default async function TicketPage({
   const canReset = !!seed && (draft !== undefined || sent !== undefined || seed.status !== ticket.status);
 
   return (
-    <div className="flex h-full">
-      <div className="flex min-w-0 flex-1 flex-col">
+    <div className="flex flex-col lg:h-full lg:flex-row">
+      <div className="flex min-w-0 flex-col lg:flex-1">
         {/* Breadcrumb */}
-        <header className="flex h-[54px] flex-none items-center gap-3 border-b border-border bg-surface px-[22px]">
+        <header className="flex h-[54px] flex-none items-center gap-3 border-b border-border bg-surface px-4 lg:px-[22px]">
           <Link href="/" className="flex items-center gap-1.5 text-[13px] text-ink-3 hover:text-ink">
             <IconArrowLeft size={15} /> Inbox
           </Link>
-          <span className="text-faint">/</span>
-          <span className="font-mono text-[11px] text-ink-3">{ticket.id.slice(0, 10)}</span>
+          <span className="hidden text-faint sm:inline">/</span>
+          <span className="hidden font-mono text-[11px] text-ink-3 sm:inline">{ticket.id.slice(0, 10)}</span>
           <StatusBadge status={ticket.status} />
           {ticket.visitorId && <DemoTag label="YOURS" />}
           <span className="flex-1" />
@@ -54,17 +54,17 @@ export default async function TicketPage({
         </header>
 
         {/* Content */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-[26px] py-6">
+        <div className="px-4 py-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-[26px] lg:py-6">
           <div className="mx-auto flex max-w-[760px] flex-col gap-[18px]">
             {/* Subject */}
             <div>
               <h1 className="text-[19px] font-semibold tracking-[-0.02em] text-ink">{ticket.subject}</h1>
-              <div className="mt-2 flex items-center gap-3">
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <div className="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-accent-soft text-[10px] font-semibold text-accent">
                   {initials(ticket.customer.name)}
                 </div>
                 <span className="text-[13px] font-medium text-ink">{ticket.customer.name}</span>
-                <span className="font-mono text-[11px] text-muted">{ticket.customer.email}</span>
+                <span className="hidden font-mono text-[11px] text-muted sm:inline">{ticket.customer.email}</span>
                 <PlanTag plan={ticket.customer.plan} />
                 <PriorityPill priority={ticket.priority} />
                 <span className="text-[12px] text-faint">{timeAgo(ticket.createdAt)}</span>
@@ -177,8 +177,8 @@ function OutcomeCard({
       </div>
 
       {/* Body */}
-      <div className="bg-surface px-[18px] py-[18px]">
-        <p className="whitespace-pre-line text-[13.5px] leading-[1.65] text-ink">{body}</p>
+      <div className="bg-surface px-4 py-4 sm:px-[18px] sm:py-[18px]">
+        <p className="whitespace-pre-line text-[13.5px] leading-[1.65] text-ink [overflow-wrap:anywhere]">{body}</p>
         {citations && citations.length > 0 && (
           <div className="mt-4">
             <div className="mb-1.5 font-mono text-[9.5px] font-semibold tracking-[0.06em] text-faint">
@@ -201,7 +201,7 @@ function OutcomeCard({
 
       {/* Footer */}
       {footer && (
-        <div className="flex items-center gap-2.5 border-t border-border-2 bg-surface-2 px-4 py-[11px]">
+        <div className="flex flex-wrap items-center gap-2.5 border-t border-border-2 bg-surface-2 px-4 py-[11px]">
           {footer}
           <button
             type="button"

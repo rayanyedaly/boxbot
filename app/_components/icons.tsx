@@ -71,3 +71,9 @@ export const IconPanelCollapse = (p: IconProps) =>
 
 export const IconActivity = (p: IconProps) =>
   svg(p, <polyline points="3 12 7 12 10 5 14 19 17 12 21 12" />);
+
+export const IconMenu = (p: IconProps) =>
+  svg(p, <><line x1="4" y1="7" x2="20" y2="7" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="17" x2="20" y2="17" /></>);
+
+export const IconClose = (p: IconProps) =>
+  svg(p, <><line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" /></>);

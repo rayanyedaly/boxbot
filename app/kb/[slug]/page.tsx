@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex-1 border-r border-border-2 px-4 py-[13px] last:border-r-0">
+    <div className="min-w-0 flex-1 border-r border-border-2 px-3 py-[13px] last:border-r-0 sm:px-4">
       <div className="font-mono text-[9px] tracking-[0.05em] text-faint">{label}</div>
       <div className="mt-1 font-mono text-[18px] font-semibold text-ink">{value}</div>
     </div>
@@ -26,18 +26,18 @@ export default async function KbArticlePage({
 
   return (
     <div className="flex h-full flex-col">
-      <header className="sticky top-0 z-10 flex h-14 flex-none items-center gap-2 border-b border-border bg-surface px-6">
+      <header className="sticky top-0 z-10 flex h-14 flex-none items-center gap-2 border-b border-border bg-surface px-4 md:px-6">
         <span className="text-[13px] text-muted">{category}</span>
         <span className="text-faint">/</span>
         <span className="font-mono text-[12px] text-ink-3">{a.slug}</span>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto py-[30px]">
-        <article className="mx-auto" style={{ width: 640, maxWidth: "88%" }}>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:py-[30px]">
+        <article className="mx-auto w-full max-w-[640px]">
           <div className="mb-2.5 font-mono text-[10.5px] font-semibold tracking-[0.06em] text-accent">
             {category}
           </div>
-          <h1 className="m-0 text-[27px] font-semibold tracking-[-0.025em] text-ink">{a.title}</h1>
+          <h1 className="m-0 text-[23px] font-semibold tracking-[-0.025em] text-ink sm:text-[27px]">{a.title}</h1>
 
           <div className="mt-3.5 flex flex-wrap items-center gap-2">
             <span className="font-mono text-[11px] text-muted">Updated {formatDate(a.createdAt)}</span>

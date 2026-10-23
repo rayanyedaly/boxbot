@@ -9,16 +9,15 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { driver, type Driver, type DriveStep } from "driver.js";
+import { driver, type Driver, type DriveStep, type Popover } from "driver.js";
 import "driver.js/dist/driver.css";
-import { RUN_EVENT, type RunPhase } from "@/lib/demo/events";
+import { REPLAY_EVENT, RUN_EVENT, type RunPhase } from "@/lib/demo/events";
 import { saveProfile } from "@/app/actions/demo";
 import { BrandMark } from "./BrandMark";
 
 type Stage = "welcome" | "inbox" | "ticket" | "done";
 
 const KEY = "bb_tour_v1";
-export const REPLAY_EVENT = "boxbot:tour-replay";
 
 function readStage(): Stage {
   try {
@@ -54,7 +53,20 @@ const getStage = () => memoryStage ?? readStage();
 const desc = (step: string, body: string, hint?: string) =>
   `<span class="bb-tour-step">${step}</span>${body}${hint ? `<span class="bb-tour-hint">${hint}</span>` : ""}`;
 
-const el = (name: string) => () => document.querySelector(`[data-tour="${name}"]`) as Element;
+// The first element with this tour name that's on screen. Some targets exist twice:
+// "new-ticket" is in the sidebar (a hidden drawer on phones) and in the phone top bar
+// (display:none on desktop).
+const shown = (e: Element) => e.getClientRects().length > 0 && getComputedStyle(e).visibility !== "hidden";
+const find = (name: string) => [...document.querySelectorAll(`[data-tour="${name}"]`)].find(shown);
+
+type TourStep = { name: string; title: string; body: string; hint?: string; popover?: Partial<Popover> };
+
+// Numbered after filtering, so a step that's hidden at this size doesn't leave a gap.
+const toDriverSteps = (steps: TourStep[], first: number, total: number): DriveStep[] =>
+  steps.map((st, i) => ({
+    element: () => find(st.name) as Element,
+    popover: { title: st.title, description: desc(`${first + i} / ${total}`, st.body, st.hint), ...st.popover },
+  }));
 
 export function DemoTour({ runsLimit, model }: { runsLimit: number; model: string }) {
   const pathname = usePathname();
@@ -63,6 +75,7 @@ export function DemoTour({ runsLimit, model }: { runsLimit: number; model: strin
   const stage = useSyncExternalStore<Stage | null>(subscribe, getStage, () => null);
   const driverRef = useRef<Driver | null>(null);
   const prevPath = useRef<string | null>(null);
+  const stepNames = useRef<string[]>([]); // the active steps, so run events move by name
 
   // "Replay tour" from the sidebar.
   useEffect(() => {
@@ -79,7 +92,6 @@ export function DemoTour({ runsLimit, model }: { runsLimit: number; model: strin
     const from = prevPath.current;
     prevPath.current = pathname;
     if (stage !== "inbox" && stage !== "ticket") return;
-    if (window.innerWidth < 900) return; // desktop layout; the welcome card already said so
     const onInbox = pathname === "/";
     const onTicket = /^\/tickets\/(?!new$)[^/]+$/.test(pathname);
     // Opening a ticket from the inbox step moves the tour on. (Starting or replaying the
@@ -94,33 +106,18 @@ export function DemoTour({ runsLimit, model }: { runsLimit: number; model: strin
       driverRef.current?.destroy();
     };
 
-    const inboxSteps: DriveStep[] = [
-      {
-        element: el("featured-ticket"),
-        popover: {
-          title: "Start with a real ticket",
-          description: desc(
-            "1 / 6",
-            "Maya is chasing a refund. Answering her means looking up her account, her orders and the refund policy, so the agent has to chain several tools.",
-            "Click the ticket to open it",
-          ),
-          side: "bottom",
-          align: "center",
-          showButtons: ["close"],
-        },
-      },
-    ];
+    // Phones (below lg) stack the agent panel under the ticket and keep the sidebar in a
+    // drawer, so popovers sit above/below, and the dashboard step (a sidebar link) drops.
+    const wide = window.matchMedia("(min-width: 1024px)").matches;
+    const tap = window.matchMedia("(pointer: coarse)").matches ? "Tap" : "Click";
 
-    const ticketSteps: DriveStep[] = [
+    const ticketTour: TourStep[] = [
       {
-        element: el("run-agent"),
+        name: "run-agent",
+        title: "Run the agent",
+        body: `This is live: <strong>${model}</strong> with eight tools over this app's database. A run takes about 8 seconds and costs about 2¢.`,
+        hint: `${tap} Run agent`,
         popover: {
-          title: "Run the agent",
-          description: desc(
-            "2 / 6",
-            `This is live: <strong>${model}</strong> with eight tools over this app's database. A run takes about 8 seconds and costs about 2¢.`,
-            "Click Run agent",
-          ),
           side: "top",
           align: "end",
           showButtons: ["next", "close"],
@@ -129,66 +126,64 @@ export function DemoTour({ runsLimit, model }: { runsLimit: number; model: strin
         },
       },
       {
-        element: el("trace"),
+        name: "trace",
+        title: "Watch it work",
+        body: "Each tool call streams in with its arguments and result, and every model call shows its cost. Nothing here is scripted.",
+        hint: "The tour continues when the run finishes",
         popover: {
-          title: "Watch it work",
-          description: desc(
-            "3 / 6",
-            "Each tool call streams in with its arguments and result, and every model call shows its cost. Nothing here is scripted.",
-            "The tour continues when the run finishes",
-          ),
-          side: "left",
-          align: "center",
+          side: wide ? "left" : "top",
+          align: wide ? "center" : "start",
           showButtons: ["next", "close"],
           nextBtnText: "Skip",
           popoverClass: "bb-tour bb-tour-gated",
         },
       },
       {
-        element: el("outcome"),
-        popover: {
-          title: "A draft, never a sent email",
-          description: desc(
-            "4 / 6",
-            "The agent <strong>stages</strong> its reply. Nothing reaches the customer until a person clicks Approve. When policy says a human should decide, it escalates instead. <strong>Reset ticket</strong> puts it back for the next run.",
-          ),
-          side: "bottom",
-          align: "start",
-          showButtons: ["next", "close"],
-        },
+        name: "outcome",
+        title: "A draft, never a sent email",
+        body: "The agent <strong>stages</strong> its reply. Nothing reaches the customer until a person clicks Approve. When policy says a human should decide, it escalates instead. <strong>Reset ticket</strong> puts it back for the next run.",
+        popover: { side: "bottom", align: "start", showButtons: ["next", "close"] },
       },
       {
-        element: el("nav-dashboard"),
-        popover: {
-          title: "Every model call is logged",
-          description: desc(
-            "5 / 6",
-            "Tokens, cost and latency for each call, rolled up per ticket and per day. The eval suite and its pass rates are in the README.",
-          ),
-          side: "right",
-          align: "start",
-          showButtons: ["next", "close"],
-        },
+        name: "nav-dashboard",
+        title: "Every model call is logged",
+        body: "Tokens, cost and latency for each call, rolled up per ticket and per day. The eval suite and its pass rates are in the README.",
+        popover: { side: "right", align: "start", showButtons: ["next", "close"] },
       },
       {
-        element: el("new-ticket"),
+        name: "new-ticket",
+        title: "Now try your own",
+        body: `Write any support request: a refund, an angry complaint, or a prompt injection. Then run the agent on it. You have <strong>${runsLimit} runs</strong> per 24 hours.`,
         popover: {
-          title: "Now try your own",
-          description: desc(
-            "6 / 6",
-            `Write any support request: a refund, an angry complaint, or a prompt injection. Then run the agent on it. You have <strong>${runsLimit} runs</strong> per 24 hours.`,
-          ),
-          side: "right",
+          side: wide ? "right" : "bottom",
           align: "end",
           showButtons: ["next", "close"],
           doneBtnText: "Finish",
           onNextClick: end,
         },
       },
-    ];
+    ].filter((st) => find(st.name)) as TourStep[];
+
+    const total = 1 + (onTicket ? ticketTour.length : wide ? 5 : 4);
+    const steps = onInbox
+      ? toDriverSteps(
+          [
+            {
+              name: "featured-ticket",
+              title: "Start with a real ticket",
+              body: "Maya is chasing a refund. Answering her means looking up her account, her orders and the refund policy, so the agent has to chain several tools.",
+              hint: `${tap} the ticket to open it`,
+              popover: { side: "bottom", align: "center", showButtons: ["close"] },
+            },
+          ],
+          1,
+          total,
+        )
+      : toDriverSteps(ticketTour, 2, total);
+    stepNames.current = onInbox ? ["featured-ticket"] : ticketTour.map((st) => st.name);
 
     const d = driver({
-      steps: onInbox ? inboxSteps : ticketSteps,
+      steps,
       animate: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
       overlayColor: "#080c18",
       overlayOpacity: 0.55,
@@ -208,10 +203,22 @@ export function DemoTour({ runsLimit, model }: { runsLimit: number; model: strin
       if (e.key === "Escape" && d.isActive()) end();
     };
     window.addEventListener("keydown", onKey);
+    // driver.js tracks window scroll only, but the page scrolls inside <main> (and on
+    // phones the trace grows as the run streams), so re-measure on both.
+    const refresh = () => d.isActive() && d.refresh();
+    const scroller = document.querySelector("main");
+    scroller?.addEventListener("scroll", refresh, { passive: true });
+    const grows = new ResizeObserver(refresh);
+    for (const st of steps) {
+      const target = typeof st.element === "function" ? st.element() : null;
+      if (target) grows.observe(target);
+    }
 
     return () => {
       window.clearTimeout(t);
       window.removeEventListener("keydown", onKey);
+      scroller?.removeEventListener("scroll", refresh);
+      grows.disconnect();
       d.destroy();
       if (driverRef.current === d) driverRef.current = null;
     };
@@ -223,10 +230,13 @@ export function DemoTour({ runsLimit, model }: { runsLimit: number; model: strin
       const d = driverRef.current;
       if (!d?.isActive()) return;
       const { phase, ok } = (e as CustomEvent<{ phase: RunPhase; ok: boolean }>).detail;
-      const i = d.getActiveIndex();
-      if (phase === "start" && i === 0) d.moveTo(1);
+      const names = stepNames.current;
+      const i = d.getActiveIndex() ?? -1;
+      const at = (name: string) => names.indexOf(name);
+      if (phase === "start" && i === at("run-agent") && at("trace") >= 0) d.moveTo(at("trace"));
       // A failed run leaves the tour on the trace, where the error is shown.
-      if (phase === "refreshed" && ok && (i === 0 || i === 1)) window.setTimeout(() => d.moveTo(2), 200);
+      if (phase === "refreshed" && ok && at("outcome") >= 0 && (i === at("run-agent") || i === at("trace")))
+        window.setTimeout(() => d.moveTo(at("outcome")), 200);
     };
     window.addEventListener(RUN_EVENT, onRun);
     return () => window.removeEventListener(RUN_EVENT, onRun);
@@ -301,7 +311,6 @@ function WelcomeCard({
       </p>
       <p className="mt-2 text-[13px] leading-relaxed text-ink-3">
         The tour takes 30 seconds. You get {runsLimit} live agent runs per 24 hours.
-        <span className="hidden max-[899px]:inline"> Best viewed on a laptop.</span>
       </p>
 
       <form
@@ -311,7 +320,7 @@ function WelcomeCard({
           onStart(name.trim(), company.trim());
         }}
       >
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="grid gap-2.5 sm:grid-cols-2">
           <label className="flex flex-col gap-1 text-[11.5px] font-medium text-ink-3">
             <span className="flex items-baseline justify-between">
               Your name <span className="font-normal text-muted">optional</span>
@@ -360,7 +369,7 @@ export function ReplayTourButton() {
     <button
       type="button"
       onClick={() => window.dispatchEvent(new Event(REPLAY_EVENT))}
-      className="text-[11.5px] font-medium text-accent-ink hover:underline max-[899px]:hidden"
+      className="text-[11.5px] font-medium text-accent-ink hover:underline"
     >
       Replay tour
     </button>
