@@ -1,11 +1,13 @@
 // app/_components/AgentTracePanel.tsx
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { AgentEvent } from "@/lib/agent/loop";
 import type { TicketTrace } from "@/lib/queries";
 import { formatUsd } from "@/lib/format";
+import { emitRun } from "@/lib/demo/events";
+import type { Quota } from "@/lib/demo/runs";
 import { IconActivity, IconPanelCollapse, IconCheck, IconWarning } from "./icons";
 
 type DoneSummary = {
@@ -30,7 +32,16 @@ function SummaryCell({ label, value, sub }: { label: string; value: string; sub?
   );
 }
 
-export function AgentTracePanel({ ticketId, trace }: { ticketId: string; trace: TicketTrace }) {
+export function AgentTracePanel({
+  ticketId,
+  trace,
+  quota,
+}: {
+  ticketId: string;
+  trace: TicketTrace;
+  /** Set in the public demo: runs are capped, so show what's left and skip the confirm. */
+  quota?: Quota | null;
+}) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [running, setRunning] = useState(false);
@@ -38,9 +49,34 @@ export function AgentTracePanel({ ticketId, trace }: { ticketId: string; trace: 
   const [summary, setSummary] = useState<DoneSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const idRef = useRef(0);
+  const completed = useRef(false); // the stream delivered its "done" summary
+  const awaitingRefresh = useRef<boolean | null>(null); // the finished run's ok, until the refresh lands
+
+  // A reset (the ticket had a run, now it doesn't) clears the last run's live view, which
+  // would otherwise sit next to a ticket that says "No agent run yet".
+  const [seenTrace, setSeenTrace] = useState(trace);
+  if (trace !== seenTrace) {
+    setSeenTrace(trace);
+    if (seenTrace.hasRun && !trace.hasRun && !running) {
+      setEvents([]);
+      setSummary(null);
+      setError(null);
+    }
+  }
+
+  // The page re-renders with the run's result after router.refresh(); tell the tour.
+  useEffect(() => {
+    if (awaitingRefresh.current === null) return;
+    const ok = awaitingRefresh.current;
+    awaitingRefresh.current = null;
+    emitRun("refreshed", ok);
+  }, [trace]);
 
   function handle(msg: StreamMsg) {
-    if (msg.type === "done") return setSummary(msg);
+    if (msg.type === "done") {
+      completed.current = true;
+      return setSummary(msg);
+    }
     if (msg.type === "error") return setError(msg.message);
     setEvents((prev) => {
       if (msg.type === "text") {
@@ -66,15 +102,23 @@ export function AgentTracePanel({ ticketId, trace }: { ticketId: string; trace: 
 
   async function run() {
     if (running) return;
-    if (!window.confirm("Run the agent on this ticket? This makes billed API calls.")) return;
+    if (!quota && !window.confirm("Run the agent on this ticket? This makes billed API calls.")) return;
     setRunning(true);
     setEvents([]);
     setSummary(null);
     setError(null);
     idRef.current = 0;
+    completed.current = false;
+    let admitted = false;
     try {
       const res = await fetch(`/api/tickets/${ticketId}/run`, { method: "POST" });
-      if (!res.ok || !res.body) throw new Error(`run failed (HTTP ${res.status})`);
+      if (!res.ok || !res.body) {
+        // Demo refusals (limits, budget, busy ticket) come back as JSON with a message.
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message ?? `run failed (HTTP ${res.status})`);
+      }
+      admitted = true;
+      emitRun("start");
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -91,6 +135,9 @@ export function AgentTracePanel({ ticketId, trace }: { ticketId: string; trace: 
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setRunning(false);
+      const ok = completed.current;
+      emitRun("done", ok);
+      if (admitted) awaitingRefresh.current = ok;
       router.refresh();
     }
   }
@@ -129,7 +176,7 @@ export function AgentTracePanel({ ticketId, trace }: { ticketId: string; trace: 
   }
 
   return (
-    <aside className="flex h-full w-[374px] flex-none flex-col border-l border-border bg-surface">
+    <aside data-tour="trace" className="flex h-full w-[374px] flex-none flex-col border-l border-border bg-surface">
       {/* Header */}
       <div className="flex h-[54px] flex-none items-center gap-2 border-b border-border-2 px-[18px]">
         <span className="text-ink-3">
@@ -222,15 +269,23 @@ export function AgentTracePanel({ ticketId, trace }: { ticketId: string; trace: 
       </div>
 
       {/* Footer */}
-      <div className="flex flex-none items-center justify-between border-t border-border-2 px-[18px] py-3">
+      <div className="flex flex-none items-center justify-between gap-3 border-t border-border-2 px-[18px] py-3">
         <button
           type="button"
+          data-tour="run-agent"
           onClick={run}
-          disabled={running}
+          disabled={running || (!!quota && (quota.runsLeft === 0 || quota.resting !== null))}
           className="rounded-md bg-accent px-3 py-1.5 text-[12px] font-semibold text-on-accent transition hover:opacity-90 disabled:opacity-60"
         >
           {running ? "Running…" : trace.hasRun ? "Re-run agent" : "Run agent"}
         </button>
+        {quota && !summary && (
+          <span className="text-right font-mono text-[10px] leading-snug text-ink-3">
+            {quota.resting
+              ? `demo budget used · back ${quota.resting === "day" ? "00:00 UTC" : "next month"}`
+              : `live Claude run · ${quota.runsLeft}/${quota.runsLimit} left in 24h`}
+          </span>
+        )}
         {summary && (
           <span className="font-mono text-[10px] text-faint">
             {summary.compactions > 0 ? `${summary.compactions} compaction · ` : ""}
@@ -249,14 +304,14 @@ function LiveRow({ event }: { event: AgentEvent }) {
       return <p className="pb-2 text-[12px] leading-relaxed text-ink-2">{event.text}</p>;
     case "tool_use":
       return (
-        <div className="pb-1.5 font-mono text-[11px]">
+        <div className="pb-1.5 font-mono text-[11px] [overflow-wrap:anywhere]">
           <span className="font-semibold text-accent-ink">{event.name}</span>
           <span className="text-faint">({trunc(JSON.stringify(event.input), 60)})</span>
         </div>
       );
     case "tool_result":
       return (
-        <div className="pb-2 font-mono text-[10.5px] text-muted">↳ {trunc(JSON.stringify(event.result), 90)}</div>
+        <div className="pb-2 font-mono text-[10.5px] text-muted [overflow-wrap:anywhere]">↳ {trunc(JSON.stringify(event.result), 90)}</div>
       );
     case "llm_call":
       return (

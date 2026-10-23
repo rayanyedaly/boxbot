@@ -78,3 +78,16 @@ export function PlanTag({ plan }: { plan: string }) {
     </span>
   );
 }
+
+/** Public-demo marker: solid for "start here", soft for "yours". */
+export function DemoTag({ label, solid = false }: { label: string; solid?: boolean }) {
+  return (
+    <span
+      className={`rounded-[5px] px-1.5 py-px font-mono text-[9.5px] font-semibold tracking-[0.04em] ${
+        solid ? "bg-accent text-on-accent" : "bg-accent-soft text-accent-ink"
+      }`}
+    >
+      {label}
+    </span>
+  );
+}

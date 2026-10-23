@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { inboxRows, type InboxRow } from "@/lib/queries";
-import { StatusBadge, PriorityPill, ChannelTag, PlanTag } from "@/app/_components/Pills";
+import { StatusBadge, PriorityPill, ChannelTag, PlanTag, DemoTag } from "@/app/_components/Pills";
 import { formatUsd, timeAgo } from "@/lib/format";
+import { IconPlus } from "@/app/_components/icons";
+import { demoContext } from "@/lib/demo/context";
+import { visibleTickets } from "@/lib/demo/tickets";
+
+// The tour starts on this one: the refund chase that needs the longest tool chain.
+const FEATURED_SUBJECT = "Where's my refund?";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +40,9 @@ export default async function InboxPage({
   searchParams: Promise<{ filter?: string }>;
 }) {
   const { filter = "all" } = await searchParams;
-  const rows = await inboxRows();
+  const demo = await demoContext();
+  const rows = await inboxRows(visibleTickets(demo?.visitorId ?? null));
+  const featuredId = rows.find((r) => r.subject === FEATURED_SUBJECT && !r.visitorId)?.id;
 
   const counts = {
     all: rows.length,
@@ -51,6 +59,13 @@ export default async function InboxPage({
       <header className="sticky top-0 z-10 flex h-14 flex-none items-center gap-3.5 border-b border-border bg-surface px-6">
         <h1 className="text-base font-semibold text-ink">Inbox</h1>
         <span className="font-mono text-[11px] text-muted">{openCount} open</span>
+        <span className="flex-1" />
+        <Link
+          href="/tickets/new"
+          className={`${demo ? "demo-glow " : ""}flex h-8 items-center gap-1.5 rounded-lg bg-accent px-3 text-[12.5px] font-semibold text-on-accent transition hover:opacity-90`}
+        >
+          <IconPlus size={14} /> Write your own ticket
+        </Link>
       </header>
 
       {/* Filter tabs */}
@@ -100,6 +115,7 @@ export default async function InboxPage({
               key={r.id}
               href={`/tickets/${r.id}`}
               aria-label={r.subject}
+              data-tour={r.id === featuredId ? "featured-ticket" : undefined}
               className={`grid ${COLS} items-center gap-3.5 border-b border-border-2 px-6 py-[13px] transition hover:bg-inset`}
             >
               {/* Status */}
@@ -117,6 +133,8 @@ export default async function InboxPage({
                     {r.subject}
                   </p>
                   <div className="mt-0.5 flex items-center gap-2">
+                    {demo && r.id === featuredId && <DemoTag label="START HERE" solid />}
+                    {r.visitorId && <DemoTag label="YOURS" />}
                     <span className="text-[12px] text-ink-3">{r.customerName}</span>
                     <PlanTag plan={r.customerPlan} />
                     <PriorityPill priority={r.priority} />

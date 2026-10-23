@@ -4,24 +4,27 @@
 // appearance toggle, user row. Data is read server-side; only SidebarNav (active
 // state) and ThemeToggle are client islands.
 
+import Link from "next/link";
 import { sidebarStats } from "@/lib/queries";
 import { formatUsd } from "@/lib/format";
+import { AGENT_MODEL } from "@/lib/agent/llm";
+import { demoContext } from "@/lib/demo/context";
+import { visibleTickets } from "@/lib/demo/tickets";
 import { SidebarNav } from "./SidebarNav";
 import { ThemeToggle } from "./ThemeToggle";
-import { IconSearch, IconChevronUpDown } from "./icons";
-
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
+import { ReplayTourButton } from "./DemoTour";
+import { BrandMark } from "./BrandMark";
+import { IconSearch, IconChevronUpDown, IconPlus } from "./icons";
 
 export async function Sidebar() {
-  const s = await sidebarStats();
+  const demo = await demoContext();
+  const s = await sidebarStats(visibleTickets(demo?.visitorId ?? null));
 
   return (
     <aside className="flex h-full w-[236px] flex-none flex-col border-r border-border bg-surface">
       {/* Brand */}
       <div className="flex items-center gap-2.5 border-b border-border-2 px-4 pb-3 pt-4">
-        <div className="flex h-[30px] w-[30px] flex-none items-center justify-center rounded-lg bg-accent shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)]">
-          <div className="h-[11px] w-[11px] rounded-[3px] border-2 border-white" />
-        </div>
+        <BrandMark />
         <div className="flex flex-col leading-tight">
           <span className="text-[14.5px] font-semibold tracking-[-0.02em] text-ink">BoxBot</span>
           <span className="mt-0.5 font-mono text-[9.5px] font-medium tracking-[0.06em] text-faint">
@@ -43,6 +46,35 @@ export async function Sidebar() {
 
       <div className="flex-1" />
 
+      {/* Public demo: runs left + the "write your own" call to action */}
+      {demo && (
+        <div className="mx-3 mb-2.5 rounded-[9px] border border-accent-bd bg-accent-soft px-3 py-[11px]">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[9.5px] font-semibold tracking-[0.06em] text-accent-ink">PUBLIC DEMO</span>
+            <ReplayTourButton />
+          </div>
+          <div className="mt-1.5 text-[12px] text-ink-2">
+            {demo.quota.resting ? (
+              <>Today&apos;s API budget is used up. Runs are back {demo.quota.resting === "day" ? "at 00:00 UTC" : "next month"}.</>
+            ) : (
+              <>
+                <span className="font-mono font-semibold text-ink">
+                  {demo.quota.runsLeft}/{demo.quota.runsLimit}
+                </span>{" "}
+                agent runs left
+              </>
+            )}
+          </div>
+          <Link
+            href="/tickets/new"
+            data-tour="new-ticket"
+            className="mt-2.5 flex h-8 items-center justify-center gap-1.5 rounded-lg bg-accent text-[12.5px] font-semibold text-on-accent transition hover:opacity-90"
+          >
+            <IconPlus size={14} /> Write your own ticket
+          </Link>
+        </div>
+      )}
+
       {/* Agent status */}
       <div className="mx-3 mb-2.5 rounded-[9px] border border-border bg-surface-2 px-3 py-[11px]">
         <div className="mb-2 flex items-center gap-1.5">
@@ -54,7 +86,7 @@ export async function Sidebar() {
             AGENT ONLINE
           </span>
         </div>
-        <div className="mb-1.5 font-mono text-[11px] text-ink">{MODEL}</div>
+        <div className="mb-1.5 font-mono text-[11px] text-ink">{AGENT_MODEL}</div>
         <div className="flex items-center justify-between font-mono text-[10.5px] text-muted">
           <span>today</span>
           <span>

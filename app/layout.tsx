@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Sidebar } from "@/app/_components/Sidebar";
+import { DemoTour } from "@/app/_components/DemoTour";
+import { demoEnabled, demoLimits } from "@/lib/demo/config";
+import { AGENT_MODEL } from "@/lib/agent/llm";
+import { modelLabel } from "@/lib/format";
 
 // Self-hosted (latin variable woff2 from Fontsource, OFL — see app/fonts/) so the build
 // never fetches from Google Fonts; that fetch flaked on CI runners.
@@ -19,6 +23,10 @@ const jetbrainsMono = localFont({
   display: "swap",
   adjustFontFallback: false, // the default Arial-metric fallback is wrong for a monospace face
 });
+
+// Every page (and the sidebar in this layout) reads the database, so nothing is
+// prerendered at build time — the image build has no DATABASE_URL.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "BoxBot — Inbox Agent",
@@ -48,6 +56,7 @@ export default function RootLayout({
           <Sidebar />
           <main className="h-full min-w-0 flex-1 overflow-y-auto">{children}</main>
         </div>
+        {demoEnabled() && <DemoTour runsLimit={demoLimits().runsPerVisitor} model={modelLabel(AGENT_MODEL)} />}
       </body>
     </html>
   );

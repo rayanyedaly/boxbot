@@ -2,9 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ticketTrace } from "@/lib/queries";
-import { StatusBadge, PriorityPill, PlanTag } from "@/app/_components/Pills";
+import { StatusBadge, PriorityPill, PlanTag, DemoTag } from "@/app/_components/Pills";
 import { ApproveButton } from "@/app/_components/ApproveButton";
 import { AgentTracePanel } from "@/app/_components/AgentTracePanel";
+import { ResetTicketButton } from "@/app/_components/ResetTicketButton";
+import { demoContext } from "@/lib/demo/context";
+import { canSeeTicket } from "@/lib/demo/tickets";
 import { IconArrowLeft, IconDraft, IconCheck, IconWarning } from "@/app/_components/icons";
 import { formatUsd, timeAgo, initials } from "@/lib/format";
 
@@ -21,7 +24,8 @@ export default async function TicketPage({
     where: { id },
     include: { customer: true, messages: { orderBy: { createdAt: "asc" } } },
   });
-  if (!ticket) notFound();
+  const demo = await demoContext();
+  if (!ticket || !canSeeTicket(ticket, demo?.visitorId ?? null)) notFound();
 
   const trace = await ticketTrace(id);
 
@@ -29,6 +33,9 @@ export default async function TicketPage({
   const draft = ticket.messages.filter((m) => m.role === "AI" && m.status === "DRAFT").at(-1);
   const sent = ticket.messages.filter((m) => m.role === "AI" && m.status === "SENT").at(-1);
   const escalTeam = ticket.tags.find((t) => t.startsWith("escalated:"))?.split(":")[1];
+  // Offer a reset once the agent has touched the ticket (a draft, a reply, or a status change).
+  const seed = ticket.seedState as { status?: string } | null;
+  const canReset = !!seed && (draft !== undefined || sent !== undefined || seed.status !== ticket.status);
 
   return (
     <div className="flex h-full">
@@ -41,6 +48,9 @@ export default async function TicketPage({
           <span className="text-faint">/</span>
           <span className="font-mono text-[11px] text-ink-3">{ticket.id.slice(0, 10)}</span>
           <StatusBadge status={ticket.status} />
+          {ticket.visitorId && <DemoTag label="YOURS" />}
+          <span className="flex-1" />
+          {canReset && <ResetTicketButton ticketId={ticket.id} />}
         </header>
 
         {/* Content */}
@@ -73,6 +83,7 @@ export default async function TicketPage({
             )}
 
             {/* Outcome */}
+            <div data-tour="outcome">
             {draft ? (
               <OutcomeCard
                 tone="open"
@@ -108,11 +119,12 @@ export default async function TicketPage({
                 No agent run yet — run the agent from the panel to draft a reply.
               </div>
             )}
+            </div>
           </div>
         </div>
       </div>
 
-      <AgentTracePanel ticketId={ticket.id} trace={trace} />
+      <AgentTracePanel ticketId={ticket.id} trace={trace} quota={demo?.quota ?? null} />
     </div>
   );
 }

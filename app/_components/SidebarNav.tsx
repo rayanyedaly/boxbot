@@ -27,6 +27,7 @@ export function SidebarNav({ inboxCount, kbCount }: { inboxCount: number; kbCoun
           <Link
             key={key}
             href={href}
+            data-tour={`nav-${key}`}
             className={`flex items-center gap-2.5 rounded-[7px] px-2.5 py-[7px] text-[13.5px] tracking-[-0.01em] transition ${
               on ? "bg-accent-soft font-semibold text-accent-ink" : "font-medium text-ink-3 hover:bg-inset"
             }`}
