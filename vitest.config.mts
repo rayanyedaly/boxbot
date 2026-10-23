@@ -17,6 +17,9 @@ export default defineConfig({
     globalSetup: ["./tests/setup/global-setup.ts"],
     include: ["tests/**/*.test.ts"],
     pool: "forks", // process isolation — safest for Prisma + import-time clients
+    // Integration files share one test DB (e.g. the demo tests reset DemoRun between
+    // cases); running files one at a time keeps one file's cleanup out of another's run.
+    fileParallelism: false,
     env: { DATABASE_URL },
   },
 });

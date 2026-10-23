@@ -36,14 +36,63 @@ async function main() {
     }
   }
 
+  // SEED_MODE=demo-reset is the public demo's nightly job: fresh tickets and dates,
+  // but model calls are detached instead of deleted so the cost dashboard keeps its
+  // history, and DemoVisitor/DemoRun (spend caps, visitor counts) are left alone.
+  const demoReset = process.env.SEED_MODE === "demo-reset";
+
   // --- Clean slate (delete in FK-safe order) ------------------------------
-  await prisma.compaction.deleteMany();
-  await prisma.llmCall.deleteMany();
-  await prisma.message.deleteMany();
-  await prisma.ticket.deleteMany();
-  await prisma.order.deleteMany();
-  await prisma.customer.deleteMany();
-  await prisma.kbArticle.deleteMany();
+  // In demo-reset the wipe runs in one transaction holding the demo's advisory lock
+  // (lib/demo/runs.ts DEMO_LOCK_KEY), the lock run admission and ticket creation take,
+  // so nothing new lands mid-wipe. A run admitted after the wait above aborts the
+  // reset; the cron's restart policy retries it.
+  if (demoReset) {
+    // Let in-flight agent runs finish first (they write to the tickets about to go).
+    // Runs older than the demo's stale window are dead and don't hold the reset.
+    for (let i = 0; i < 24; i++) {
+      const live = await prisma.demoRun.count({
+        where: { status: "RUNNING", startedAt: { gt: new Date(Date.now() - 10 * 60_000) } },
+      });
+      if (live === 0) break;
+      console.log(`[seed] demo reset: waiting for ${live} live run(s)…`);
+      await new Promise((r) => setTimeout(r, 5_000));
+    }
+    // A run that never reported back (process killed mid-run) is closed at the
+    // demo's per-run reserve, so it stays counted in the spend caps.
+    await prisma.$executeRaw`
+      UPDATE "DemoRun" SET "status" = 'ERROR', "finishedAt" = now(), "costUsd" = 0.05
+      WHERE "status" = 'RUNNING' AND "startedAt" < now() - interval '10 minutes'`;
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(${0x62627431}::bigint)::text`;
+        const live = await tx.demoRun.count({
+          where: { status: "RUNNING", startedAt: { gt: new Date(Date.now() - 10 * 60_000) } },
+        });
+        if (live > 0) throw new Error(`[seed] demo reset: ${live} run(s) started during the wait; retry later`);
+        await tx.compaction.updateMany({ data: { ticketId: null } });
+        await tx.llmCall.updateMany({ data: { ticketId: null } });
+        await tx.message.deleteMany();
+        await tx.ticket.deleteMany();
+        await tx.order.deleteMany();
+        await tx.customer.deleteMany();
+        await tx.kbArticle.deleteMany();
+      },
+      { timeout: 60_000 },
+    );
+    // Visitor rows (and their runs) go 45 days after the visitor was last seen.
+    const pruned = await prisma.demoVisitor.deleteMany({
+      where: { lastSeen: { lt: daysAgo(45) } },
+    });
+    console.log(`[seed] demo reset: pruned ${pruned.count} stale visitors`);
+  } else {
+    await prisma.compaction.deleteMany();
+    await prisma.llmCall.deleteMany();
+    await prisma.message.deleteMany();
+    await prisma.ticket.deleteMany();
+    await prisma.order.deleteMany();
+    await prisma.customer.deleteMany();
+    await prisma.kbArticle.deleteMany();
+  }
 
   // --- Knowledge base -----------------------------------------------------
   // Bodies carry the keywords the contains-search in tools.ts matches on, and a
@@ -525,6 +574,11 @@ async function main() {
       },
     },
   });
+
+  // --- Starting state, so the demo's "Reset ticket" can restore it ----------
+  await prisma.$executeRaw`
+    UPDATE "Ticket"
+    SET "seedState" = jsonb_build_object('status', "status", 'priority', "priority", 'tags', to_jsonb("tags"))`;
 
   // --- Summary ------------------------------------------------------------
   const [customers, orders, kb, tickets, messages] = await Promise.all([

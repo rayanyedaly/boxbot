@@ -13,7 +13,7 @@
 // MAX_ITERATIONS caps the loop as a runaway guard.
 
 import type Anthropic from "@anthropic-ai/sdk";
-import { toolDefinitions, runTool } from "./tools";
+import { toolDefinitions, runTool, type ToolContext } from "./tools";
 import { SYSTEM_PROMPT } from "./system-prompt";
 import { maybeCompact, liveContextTokens } from "./context";
 import { prisma } from "../prisma";
@@ -65,8 +65,10 @@ export async function runAgent(opts: {
   ticketId?: string | null;
   initialUserMessage: string;
   onEvent?: (e: AgentEvent) => void;
+  /** The ticket being resolved; scopes the tools to it (see ToolContext). */
+  toolCtx?: ToolContext;
 }): Promise<AgentRunResult> {
-  const { ticketId, initialUserMessage, onEvent } = opts;
+  const { ticketId, initialUserMessage, onEvent, toolCtx } = opts;
   const client = getAnthropic();
 
   // Stable prefix (tools render before system); cache_control caches tools+system
@@ -154,7 +156,7 @@ export async function runAgent(opts: {
     for (const t of toolUses) {
       onEvent?.({ type: "tool_use", name: t.name, input: t.input });
       toolCalls.push({ name: t.name, input: t.input });
-      const result = await runTool(t.name, t.input);
+      const result = await runTool(t.name, t.input, toolCtx);
       onEvent?.({ type: "tool_result", name: t.name, result });
       results.push({
         type: "tool_result",
@@ -222,6 +224,7 @@ export async function runTicket(
     include: { customer: true, messages: { orderBy: { createdAt: "asc" } } },
   });
   if (!ticket) throw new Error(`ticket_not_found:${ticketId}`);
+  const toolCtx: ToolContext = { ticketId: ticket.id, customerId: ticket.customerId };
 
   const customerMessage = ticket.messages
     .filter((m) => m.role === "CUSTOMER")
@@ -242,5 +245,5 @@ export async function runTicket(
     customerMessage || "(no message body)",
   ].join("\n");
 
-  return runAgent({ ticketId: ticket.id, initialUserMessage, onEvent });
+  return runAgent({ ticketId: ticket.id, initialUserMessage, onEvent, toolCtx });
 }

@@ -52,6 +52,12 @@ model Ticket {
   tags       String[]       @default([])
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
+  // Status/priority/tags as seeded or submitted, so a demo visitor can reset the
+  // ticket after the agent has acted on it. Null for tickets made before it existed.
+  seedState  Json?
+  // Set on tickets a demo visitor wrote; only that visitor sees them. Plain id (no
+  // FK) so pruning visitors never cascades into ticket data.
+  visitorId  String?
 
   messages    Message[]
   llmCalls    LlmCall[]
@@ -59,6 +65,7 @@ model Ticket {
 
   @@index([customerId])
   @@index([status])
+  @@index([visitorId])
 }
 
 model Message {
@@ -128,6 +135,47 @@ model Compaction {
 }
 
 // ---------------------------------------------------------------------------
+// Public demo guardrails (DEMO_MODE). Untouched by the nightly reseed, so spend
+// caps and visitor counts survive it.
+// ---------------------------------------------------------------------------
+
+// One row per browser (httpOnly cookie id). No login: name/company are optional and
+// self-reported; the IP is stored only as a salted hash.
+model DemoVisitor {
+  id        String    @id
+  ipHash    String
+  name      String?
+  company   String?
+  firstSeen DateTime  @default(now())
+  lastSeen  DateTime  @default(now())
+
+  runs DemoRun[]
+
+  @@index([ipHash])
+  @@index([lastSeen])
+}
+
+// One row per admitted agent run: the unit the per-visitor, per-IP, concurrency and
+// spend limits count. ticketId has no FK: the nightly reseed replaces tickets, and
+// these rows must outlive them for the monthly cap.
+model DemoRun {
+  id         String        @id @default(cuid())
+  visitorId  String
+  visitor    DemoVisitor   @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  ipHash     String
+  ticketId   String
+  status     DemoRunStatus @default(RUNNING)
+  costUsd    Decimal       @default(0) @db.Decimal(10, 6)
+  startedAt  DateTime      @default(now())
+  finishedAt DateTime?
+
+  @@index([startedAt])
+  @@index([visitorId, startedAt])
+  @@index([ipHash, startedAt])
+  @@index([ticketId, status])
+}
+
+// ---------------------------------------------------------------------------
 // Enums
 // ---------------------------------------------------------------------------
 
@@ -174,4 +222,10 @@ enum MessageRole {
 enum MessageStatus {
   DRAFT // staged by the agent, awaiting human approval
   SENT
+}
+
+enum DemoRunStatus {
+  RUNNING
+  DONE
+  ERROR
 }

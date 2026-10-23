@@ -79,7 +79,8 @@ describe("runAgent — hand-rolled tool-use loop", () => {
 
     // The tool was executed with the model's emitted input.
     expect(mocks.runTool).toHaveBeenCalledTimes(1);
-    expect(mocks.runTool).toHaveBeenCalledWith("search_customer", { query: "maya" });
+    // No ticket context here (runAgent called directly); runTicket supplies one.
+    expect(mocks.runTool).toHaveBeenCalledWith("search_customer", { query: "maya" }, undefined);
 
     // The second model call received a user turn carrying the matching tool_result.
     const secondCallMessages = mocks.streamMock.mock.calls[1][0].messages;

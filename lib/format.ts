@@ -54,3 +54,11 @@ export function formatDate(d: Date): string {
     timeZone: "UTC",
   }).format(d);
 }
+
+/** "claude-sonnet-5-5" -> "Claude Sonnet 5.5", for copy that names the configured model. */
+export function modelLabel(model: string): string {
+  const parts = model.replace(/^claude-/, "").split("-");
+  const words = parts.filter((p) => !/^\d+$/.test(p)).map((w) => w[0].toUpperCase() + w.slice(1));
+  const version = parts.filter((p) => /^\d+$/.test(p) && p.length < 4).join(".");
+  return ["Claude", ...words, version].filter(Boolean).join(" ");
+}

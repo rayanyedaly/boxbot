@@ -4,6 +4,7 @@
 // the page components so the per-ticket readout and the dashboard share one source
 // of truth. All Decimal values are converted to number here (server side).
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { decToNumber } from "./format";
 import { PRICES } from "./agent/cost";
@@ -146,15 +147,18 @@ export interface InboxRow {
   costUsd: number;
   lastRunAt: Date | null;
   hasDraft: boolean;
+  /** Set when a demo visitor wrote this ticket. */
+  visitorId: string | null;
 }
 
 /**
  * Inbox rows with the "agent footprint" (cost, tool count, last-run, outcome) derived
  * per ticket. One findMany + one grouped raw aggregate over LlmCall, joined in JS.
  */
-export async function inboxRows(): Promise<InboxRow[]> {
+export async function inboxRows(where: Prisma.TicketWhereInput = {}): Promise<InboxRow[]> {
   const [tickets, stats] = await Promise.all([
     prisma.ticket.findMany({
+      where,
       orderBy: { updatedAt: "desc" },
       include: {
         customer: { select: { name: true, plan: true } },
@@ -191,6 +195,7 @@ export async function inboxRows(): Promise<InboxRow[]> {
       costUsd: decToNumber(st?.cost ?? 0),
       lastRunAt: st?.lastrun ?? null,
       hasDraft,
+      visitorId: t.visitorId,
     };
   });
 }
@@ -273,11 +278,11 @@ export interface SidebarStats {
 }
 
 /** Ambient sidebar figures: open-ticket count, KB article count, today's spend. */
-export async function sidebarStats(): Promise<SidebarStats> {
+export async function sidebarStats(visible: Prisma.TicketWhereInput = {}): Promise<SidebarStats> {
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
   const [openCount, kbCount, today] = await Promise.all([
-    prisma.ticket.count({ where: { status: "OPEN" } }),
+    prisma.ticket.count({ where: { AND: [visible, { status: "OPEN" }] } }),
     prisma.kbArticle.count(),
     prisma.llmCall.aggregate({
       where: { createdAt: { gte: startOfDay } },
@@ -292,6 +297,9 @@ export async function sidebarStats(): Promise<SidebarStats> {
     todayCalls: today._count._all,
   };
 }
+
+/** Whose tickets a per-ticket list may name: everyone's, or seeded + one visitor's. */
+export type TicketVisibility = { all: true } | { all: false; visitorId: string | null };
 
 export interface DashboardStats {
   totalSpend: number;
@@ -320,7 +328,8 @@ export interface DashboardStats {
  * resolved aggregates spend over the SET of resolved ticket ids (never total/count,
  * which would fold in unresolved tickets and ticketId-null calls).
  */
-export async function dashboardStats(): Promise<DashboardStats> {
+export async function dashboardStats(visible: TicketVisibility = { all: true }): Promise<DashboardStats> {
+  const visitorId = visible.all ? "" : (visible.visitorId ?? "");
   const [totals, tokens, resolvedRows, totalTickets, spendRows, modelRows, runRows, comp] =
     await Promise.all([
       prisma.llmCall.aggregate({ _sum: { costUsd: true }, _count: { _all: true } }),
@@ -328,11 +337,15 @@ export async function dashboardStats(): Promise<DashboardStats> {
         _sum: { inputTokens: true, outputTokens: true, cacheReadTokens: true },
       }),
       prisma.message.findMany({
-        where: { role: "AI", status: "SENT" },
+        where: {
+          role: "AI",
+          status: "SENT",
+          ...(visible.all ? {} : { ticket: { OR: [{ visitorId: null }, { visitorId }] } }),
+        },
         select: { ticketId: true },
         distinct: ["ticketId"],
       }),
-      prisma.ticket.count(),
+      prisma.ticket.count({ where: visible.all ? {} : { OR: [{ visitorId: null }, { visitorId }] } }),
       // Bucket + format the day in SQL (to_char) so the label is UTC-deterministic and
       // doesn't depend on the Node server's TZ when a timestamp round-trips through Date.
       // SUM(numeric) comes back as a string from the pg driver — decToNumber handles it.
@@ -348,6 +361,7 @@ export async function dashboardStats(): Promise<DashboardStats> {
                SUM(l."costUsd") AS cost, SUM(l."latencyMs")::int AS latency, MAX(l."createdAt") AS lastrun
         FROM "LlmCall" l JOIN "Ticket" t ON t."id" = l."ticketId"
         WHERE l."ticketId" IS NOT NULL
+          AND (${visible.all} OR t."visitorId" IS NULL OR t."visitorId" = ${visitorId})
         GROUP BY l."ticketId", t."subject", t."status"
         ORDER BY lastrun DESC LIMIT 8`,
       prisma.compaction.aggregate({ _sum: { tokensSaved: true }, _count: { _all: true } }),

@@ -19,6 +19,21 @@ import type Anthropic from "@anthropic-ai/sdk";
 // a harness that points DATABASE_URL at another DB (evals) moves every query with it.
 import { prisma } from "../prisma";
 import { searchKb } from "./kb-search";
+import { GUEST_DOMAIN } from "../demo/config";
+
+/**
+ * The ticket a run is resolving. Write tools may only touch this ticket, whatever id the
+ * model passes (a prompt-injected ticket can't draft onto another one), and read tools
+ * never surface tickets or guest customers that other demo visitors wrote.
+ */
+export type ToolContext = { ticketId: string; customerId: string };
+
+const WRITE_TOOLS = new Set(["draft_reply", "update_ticket", "escalate_ticket"]);
+
+// Seeded tickets, plus the one being resolved (which may be a visitor's own).
+const sharedTicketsOr = (ctx?: ToolContext) => ({
+  OR: [{ visitorId: null }, ...(ctx ? [{ id: ctx.ticketId }] : [])],
+});
 
 // --- API-facing definitions ------------------------------------------------
 
@@ -175,10 +190,10 @@ export const toolDefinitions: Anthropic.Tool[] = [
 // Each returns a lean, JSON-serializable object. Replace TODOs as you wire real
 // search; the Prisma sketches below are the intended shape, not final.
 
-type ToolHandler = (input: any) => Promise<unknown>;
+type ToolHandler = (input: any, ctx?: ToolContext) => Promise<unknown>;
 
 export const toolHandlers: Record<string, ToolHandler> = {
-  async search_customer({ query }) {
+  async search_customer({ query }, ctx) {
     // The model often passes name and email together ("Omar Haddad omar@x.com"), which
     // as one substring matches nothing. Split into terms; each must match the name or
     // the email.
@@ -186,12 +201,16 @@ export const toolHandlers: Record<string, ToolHandler> = {
     if (terms.length === 0) return { matches: [] };
     const matches = await prisma.customer.findMany({
       where: {
-        AND: terms.map((t) => ({
-          OR: [
-            { name: { contains: t, mode: "insensitive" as const } },
-            { email: { contains: t, mode: "insensitive" as const } },
-          ],
-        })),
+        AND: [
+          ...terms.map((t) => ({
+            OR: [
+              { name: { contains: t, mode: "insensitive" as const } },
+              { email: { contains: t, mode: "insensitive" as const } },
+            ],
+          })),
+          // Guest customers are demo visitors' inventions; only this ticket's own is findable.
+          { OR: [{ NOT: { email: { endsWith: `@${GUEST_DOMAIN}` } } }, ...(ctx ? [{ id: ctx.customerId }] : [])] },
+        ],
       },
       orderBy: [{ name: "asc" }, { email: "asc" }],
       take: 5,
@@ -200,7 +219,7 @@ export const toolHandlers: Record<string, ToolHandler> = {
     return { matches };
   },
 
-  async get_customer_context({ customerId }) {
+  async get_customer_context({ customerId }, ctx) {
     const customer = await prisma.customer.findUnique({
       where: { id: customerId },
       select: { id: true, name: true, email: true, plan: true, createdAt: true },
@@ -209,7 +228,7 @@ export const toolHandlers: Record<string, ToolHandler> = {
 
     const [orderCount, openTickets] = await Promise.all([
       prisma.order.count({ where: { customerId } }),
-      prisma.ticket.count({ where: { customerId, status: "OPEN" } }),
+      prisma.ticket.count({ where: { customerId, status: "OPEN", ...sharedTicketsOr(ctx) } }),
     ]);
     return { customer, orderCount, openTickets };
   },
@@ -236,9 +255,9 @@ export const toolHandlers: Record<string, ToolHandler> = {
     return { articles: await searchKb(String(query ?? ""), limit) };
   },
 
-  async get_ticket_history({ customerId, limit = 5 }) {
+  async get_ticket_history({ customerId, limit = 5 }, ctx) {
     const tickets = await prisma.ticket.findMany({
-      where: { customerId },
+      where: { customerId, ...sharedTicketsOr(ctx) },
       orderBy: { createdAt: "desc" },
       take: limit,
       select: {
@@ -293,14 +312,19 @@ export const toolHandlers: Record<string, ToolHandler> = {
 };
 
 // Convenience for the loop: run a tool_use block by name, guarding unknown names.
-export async function runTool(name: string, input: unknown): Promise<unknown> {
+export async function runTool(name: string, input: unknown, ctx?: ToolContext): Promise<unknown> {
   const handler = toolHandlers[name];
   if (!handler) return { error: `unknown_tool:${name}` };
+  const target = (input as { ticketId?: unknown } | null)?.ticketId;
+  if (ctx && WRITE_TOOLS.has(name) && target !== ctx.ticketId) {
+    return { error: "wrong_ticket", message: `You can only act on the ticket you are resolving (${ctx.ticketId}).` };
+  }
   try {
-    return await handler(input);
+    return await handler(input, ctx);
   } catch (err) {
     // Return the error as a tool_result so the model can recover/escalate rather
-    // than the whole loop throwing.
+    // than the whole loop throwing — and log it, or it's only visible to the model.
+    console.error(`[tool] ${name} failed`, err);
     return { error: "tool_failed", detail: String(err) };
   }
 }

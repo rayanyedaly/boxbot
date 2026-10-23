@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { demoContext } from "@/lib/demo/context";
+import { AGENT_MODEL, SUMMARY_MODEL } from "@/lib/agent/llm";
 import { dashboardStats } from "@/lib/queries";
 import { formatUsd, formatTokens } from "@/lib/format";
 import { StatCard } from "@/app/_components/dashboard/StatCard";
@@ -8,9 +10,10 @@ import { StatusPill } from "@/app/_components/Pills";
 
 export const dynamic = "force-dynamic";
 
+// From the configured models, not hardcoded ids, so the tags follow ANTHROPIC_MODEL.
 const MODEL_ROLE: Record<string, string> = {
-  "claude-sonnet-4-6": "agent",
-  "claude-haiku-4-5": "compaction",
+  [SUMMARY_MODEL]: "compaction",
+  [AGENT_MODEL]: "agent",
 };
 
 function Card({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
@@ -26,7 +29,8 @@ function Card({ title, sub, children }: { title: string; sub?: string; children:
 }
 
 export default async function DashboardPage() {
-  const s = await dashboardStats();
+  const demo = await demoContext();
+  const s = await dashboardStats(demo ? { all: false, visitorId: demo.visitorId } : { all: true });
   const maxModel = Math.max(...s.spendByModel.map((m) => m.spend), 0.000001);
 
   return (

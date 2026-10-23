@@ -3,6 +3,9 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { demoEnabled } from "@/lib/demo/config";
+import { readVisitorId } from "@/lib/demo/visitor";
+import { canSeeTicket } from "@/lib/demo/tickets";
 
 /**
  * The human-in-the-loop gate: approve a staged AI draft by flipping it DRAFT -> SENT.
@@ -13,6 +16,11 @@ export async function approveMessage(
   messageId: string,
   ticketId: string,
 ): Promise<void> {
+  // In the public demo a visitor's own ticket is private to them, approvals included.
+  if (demoEnabled()) {
+    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { visitorId: true } });
+    if (!ticket || !canSeeTicket(ticket, await readVisitorId())) return;
+  }
   // Scope the transition so only an AI DRAFT on this ticket can flip to SENT — a
   // data-integrity guard (updateMany is a clean no-op on re-approve, never a throw).
   await prisma.message.updateMany({
