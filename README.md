@@ -110,6 +110,7 @@ escalation team, tools, required facts, privacy) don't depend on it.
 - [Running locally](#running-locally)
 - [Testing & CI](#testing--ci)
 - [Evals](#evals)
+- [Public demo (Railway)](#public-demo-railway)
 - [Current scope & limitations](#current-scope--limitations)
 
 ---
@@ -287,8 +288,8 @@ imply a reply was sent** (only `draft_reply` stages, a human approves); escalate
 fraud to `trust_and_safety` and recurring technical issues to `engineering`; and set a ticket to
 `PENDING` with a clarifying draft when a request is underspecified.
 
-> `search_knowledge_base` currently uses a case-insensitive substring match; a TODO in the source
-> notes a future switch to Postgres full-text (`tsvector`) or embeddings.
+> `search_knowledge_base` uses ranked Postgres full-text search (`lib/agent/kb-search.ts`): query
+> terms are OR'd, and title/tag matches outrank body matches. Embeddings would be the next step.
 
 ---
 
@@ -575,6 +576,12 @@ required for live use; everything else has a default.
 | `COMPACTION_TOKEN_THRESHOLD` | compaction trigger | `12000` |
 | `COMPACTION_RECENT_TURNS` | turns kept verbatim | `4` |
 | `DB_PORT` | docker-compose host port | `5432` |
+| `DEMO_MODE` | public-demo guardrails, tour, visitor tickets | off |
+| `DEMO_IP_SALT` | salted hash of visitor IPs (required with `DEMO_MODE`) | — |
+| `DEMO_ADMIN_TOKEN` | opens `/admin` (visitor list) | — (page is a 404 without it) |
+| `DEMO_RUNS_PER_VISITOR` / `DEMO_RUNS_PER_IP` | agent runs per rolling 24h | `10` / `30` |
+| `DEMO_DAILY_USD` / `DEMO_MONTHLY_USD` | demo spend caps | `3` / `25` |
+| `DEMO_MAX_CONCURRENT` | agent runs in flight at once | `3` |
 | `NODE_ENV` | Prisma singleton guard | runtime |
 
 `.env*` is gitignored except `.env.example`; `PLAN.md` is gitignored.
@@ -693,6 +700,33 @@ on `main`, a separate job with no `npm` and no repo scripts commits the refreshe
 
 ---
 
+## Public demo (Railway)
+
+The live demo runs on Railway, declared as code in [`railway/railway.ts`](railway/railway.ts)
+(Railway IaC; runbook in [`railway/README.md`](railway/README.md)): Postgres, the app built
+from the same `Dockerfile`, and a nightly cron job that reseeds the demo data.
+
+It's public with no login, so `DEMO_MODE=true` turns on a few guardrails (`lib/demo/`):
+
+- **Run admission.** Each agent run is admitted against a limit per browser (an httpOnly
+  cookie id), a looser one per IP (stored only as a salted hash), at most 3 runs in flight,
+  one live run per ticket, and daily and monthly spend caps. Admission takes a Postgres
+  advisory lock, so concurrent requests can't both slip under a limit.
+- **Spend counted from real usage.** A run's cost is settled from the `LlmCall` rows it
+  wrote, the same numbers the dashboard shows. An Anthropic workspace spend limit on the
+  demo's key backs the in-app caps.
+- **Shared data that stays usable.** "Reset ticket" restores a ticket's seeded state, with
+  no model calls. The nightly job reseeds so relative dates stay current. Both detach model
+  calls rather than delete them, so cost history survives.
+- **Write your own ticket.** Visitors can submit a ticket as a seeded customer (real order
+  and ticket history) or as a new one, and run the agent on it. Their tickets are visible
+  only to them.
+- **A 30-second guided tour** (driver.js) walks a first-time visitor through running the
+  agent, watching the trace, and the staged draft. It asks for an optional name and company,
+  which only feed a visitor count at `/admin`.
+
+---
+
 ## Infrastructure (AWS CDK · separate artifact)
 
 `infra/` holds an account-agnostic AWS CDK stack — a **separate, cuttable IaC artifact, not
@@ -722,11 +756,13 @@ See `infra/README.md` for the full build-push-deploy-destroy flow.
 - **Single workspace.** No authentication, multi-tenancy, RBAC, or org isolation.
 - **No outbound delivery.** "Approve & send" flips a message's status to `SENT`; there is no email/
   SMS integration.
-- **Knowledge base search** is a case-insensitive substring match (not full-text or embeddings).
+- **Knowledge base search** is Postgres full-text search (ranked, OR'd terms), not embeddings.
 - **Derived data.** The "grounded-in" citations and KB cite counts are re-derived from logged
   search queries and are approximate; the ticket trace and most dashboard panels are computed from
   the `LlmCall` table rather than a dedicated run-history table.
-- **No persistent hosted instance.** It runs locally and in CI against Docker Postgres. The
-  `infra/` CDK stack can stand it up on AWS Fargate + RDS on demand (deploy → screenshot →
-  destroy), but nothing is left running — there is no always-on demo URL.
+- **Hosting.** The public demo runs on Railway (`railway/`). The `infra/` CDK stack can stand
+  the same container up on AWS Fargate + RDS on demand (deploy → screenshot → destroy); nothing
+  is left running there.
+- **Demo visitors aren't authenticated.** Limits key on a cookie and a hashed IP, so someone
+  determined can get more runs; the spend caps and the Anthropic workspace limit bound the cost.
 - The agent persona and user in the UI (model status card, sidebar profile) are fixed demo chrome.

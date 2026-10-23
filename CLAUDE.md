@@ -114,8 +114,12 @@ prisma/seed.ts              # fake customers/orders/tickets/KB
       Status (2026-10-22): gold set + harness + CI done. Sonnet 4.6 went 56.7% → 82.2% dev /
       88.9% held-out (3 trials) via KB/customer search fixes + prompt rules — see the README
       progression table. Sonnet 5.5 + Haiku 5.5 (3 trials): 93.3% dev / 100% held-out at
-      half the cost per ticket. NEXT: push (needs the ANTHROPIC_API_KEY repo secret), then
-      the Railway demo, then the video.
+      half the cost per ticket. Pushed; CI evals green on main (gate 0.80).
+      Public demo (2026-10-23): DEMO_MODE guardrails in lib/demo/ (cookie + hashed-IP run
+      limits, spend caps from real cost, advisory-lock admission, per-ticket reset, private
+      visitor tickets), driver.js tour, /tickets/new, /admin, Railway IaC in railway/ (not
+      .railway/ — commands pass --file). NEXT: Railway deploy once their builds are back
+      (railway/README.md), then the video.
 
 Mark the active phase when you start a session so context survives across sessions.
 
