@@ -3,13 +3,14 @@
 
 // The responsive frame around every page. From lg up, the sidebar sits beside the
 // page as before. Below lg it becomes a modal drawer behind a top bar (menu, brand,
-// new ticket), so phones get the full width for the inbox and tickets.
+// theme toggle, new ticket), so phones get the full width for the inbox and tickets.
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { REPLAY_EVENT } from "@/lib/demo/events";
 import { BrandMark } from "./BrandMark";
+import { ThemeToggle } from "./ThemeToggle";
 import { IconClose, IconMenu, IconPlus } from "./icons";
 
 export function AppShell({
@@ -88,13 +89,14 @@ export function AppShell({
         </button>
         <Link href="/" className="flex items-center gap-2">
           <BrandMark />
-          <span className="text-[15px] font-semibold tracking-[-0.02em] text-ink">BoxBot</span>
+          <span className="text-base font-semibold text-ink">BoxBot</span>
         </Link>
         <span className="flex-1" />
+        <ThemeToggle className="flex h-10 w-10" />
         <Link
           href="/tickets/new"
           data-tour="new-ticket"
-          className={`${demo ? "demo-glow " : ""}flex h-10 items-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-semibold text-on-accent`}
+          className={`${demo ? "demo-glow " : ""}flex h-10 items-center gap-1.5 rounded-md bg-accent px-3 text-sm font-semibold text-on-accent`}
         >
           <IconPlus size={15} /> New<span className="sr-only"> ticket</span>
         </Link>
@@ -102,7 +104,7 @@ export function AppShell({
 
       {/* Drawer backdrop (mobile) */}
       {open && (
-        <div aria-hidden onClick={dismiss} className="fixed inset-0 z-40 bg-[#080c18]/55 lg:hidden" />
+        <div aria-hidden onClick={dismiss} className="fixed inset-0 z-40 bg-overlay/50 lg:hidden" />
       )}
 
       {/* Sidebar: static from lg; a modal drawer below. Closed, it's invisible, so it's
@@ -115,7 +117,7 @@ export function AppShell({
         aria-label={open ? "Menu" : undefined}
         className={`fixed inset-y-0 left-0 z-50 flex motion-reduce:transition-none lg:static lg:visible lg:z-auto lg:translate-x-0 lg:shadow-none lg:transition-none ${
           open
-            ? "visible translate-x-0 shadow-[0_24px_64px_rgba(8,12,24,0.35)] [transition:translate_200ms]"
+            ? "visible translate-x-0 shadow-pop [transition:translate_200ms]"
             : "invisible -translate-x-full [transition:translate_200ms,visibility_0s_200ms]"
         }`}
       >

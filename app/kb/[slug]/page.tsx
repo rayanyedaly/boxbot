@@ -1,17 +1,9 @@
 import { notFound } from "next/navigation";
 import { kbArticle } from "@/lib/queries";
 import { formatDate } from "@/lib/format";
+import { PageHeader } from "@/app/_components/PageHeader";
 
 export const dynamic = "force-dynamic";
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 flex-1 border-r border-border-2 px-3 py-[13px] last:border-r-0 sm:px-4">
-      <div className="font-mono text-[9px] tracking-[0.05em] text-faint">{label}</div>
-      <div className="mt-1 font-mono text-[18px] font-semibold text-ink">{value}</div>
-    </div>
-  );
-}
 
 export default async function KbArticlePage({
   params,
@@ -22,39 +14,33 @@ export default async function KbArticlePage({
   const a = await kbArticle(slug);
   if (!a) notFound();
 
-  const category = (a.tags[0] ?? "general").toUpperCase();
+  const tag = a.tags[0] ?? "general";
+  const category = tag.charAt(0).toUpperCase() + tag.slice(1);
 
   return (
     <div className="flex h-full flex-col">
-      <header className="sticky top-0 z-10 flex h-14 flex-none items-center gap-2 border-b border-border bg-surface px-4 md:px-6">
-        <span className="text-[13px] text-muted">{category}</span>
+      <PageHeader sticky>
+        <span className="text-sm text-muted">{category}</span>
         <span className="text-faint">/</span>
-        <span className="font-mono text-[12px] text-ink-3">{a.slug}</span>
-      </header>
+        <span className="truncate font-mono text-xs text-ink-3">{a.slug}</span>
+      </PageHeader>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:py-[30px]">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:py-8">
         <article className="mx-auto w-full max-w-[640px]">
-          <div className="mb-2.5 font-mono text-[10.5px] font-semibold tracking-[0.06em] text-accent">
-            {category}
-          </div>
-          <h1 className="m-0 text-[23px] font-semibold tracking-[-0.025em] text-ink sm:text-[27px]">{a.title}</h1>
+          <h1 className="m-0 text-2xl font-semibold text-ink">{a.title}</h1>
 
           <div className="mt-3.5 flex flex-wrap items-center gap-2">
-            <span className="font-mono text-[11px] text-muted">Updated {formatDate(a.createdAt)}</span>
+            <span className="text-xs text-muted">
+              Updated {formatDate(a.createdAt)}, cited by the agent {a.cites} {a.cites === 1 ? "time" : "times"}
+            </span>
             {a.tags.map((t) => (
-              <span key={t} className="rounded-[5px] bg-inset px-2 py-0.5 text-[11px] text-ink-3">
+              <span key={t} className="rounded-sm border border-border px-1.5 text-xs text-ink-3">
                 {t}
               </span>
             ))}
           </div>
 
-          <div className="mt-6 mb-6 flex overflow-hidden rounded-[10px] border border-border bg-surface">
-            <Stat label="UPDATED" value={formatDate(a.createdAt)} />
-            <Stat label="TAGS" value={String(a.tags.length)} />
-            <Stat label="AGENT CITES" value={String(a.cites)} />
-          </div>
-
-          <p className="whitespace-pre-line text-[14.5px] leading-[1.7] text-ink">{a.body}</p>
+          <p className="mt-6 whitespace-pre-line text-base leading-relaxed text-ink">{a.body}</p>
         </article>
       </div>
     </div>

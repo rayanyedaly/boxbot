@@ -8,19 +8,23 @@ import { demoEnabled, demoLimits } from "@/lib/demo/config";
 import { AGENT_MODEL } from "@/lib/agent/llm";
 import { modelLabel } from "@/lib/format";
 
-// Self-hosted (latin variable woff2 from Fontsource, OFL — see app/fonts/) so the build
+// IBM Plex, self-hosted (latin woff2 from Fontsource, OFL — see app/fonts/) so the build
 // never fetches from Google Fonts; that fetch flaked on CI runners.
-const schibstedGrotesk = localFont({
-  src: "./fonts/schibsted-grotesk-latin-wght-normal.woff2",
-  weight: "400 900",
-  variable: "--font-schibsted",
+const plexSans = localFont({
+  src: "./fonts/ibm-plex-sans-latin-wght-normal.woff2",
+  weight: "100 700",
+  variable: "--font-plex-sans",
   display: "swap",
 });
 
-const jetbrainsMono = localFont({
-  src: "./fonts/jetbrains-mono-latin-wght-normal.woff2",
-  weight: "100 800",
-  variable: "--font-jetbrains",
+// Plex Mono has no variable build; ship only the weights the UI uses.
+const plexMono = localFont({
+  src: [
+    { path: "./fonts/ibm-plex-mono-latin-400-normal.woff2", weight: "400" },
+    { path: "./fonts/ibm-plex-mono-latin-500-normal.woff2", weight: "500" },
+    { path: "./fonts/ibm-plex-mono-latin-600-normal.woff2", weight: "600" },
+  ],
+  variable: "--font-plex-mono",
   display: "swap",
   adjustFontFallback: false, // the default Arial-metric fallback is wrong for a monospace face
 });
@@ -46,7 +50,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${schibstedGrotesk.variable} ${jetbrainsMono.variable}`}
+      className={`${plexSans.variable} ${plexMono.variable}`}
       suppressHydrationWarning
     >
       <head>

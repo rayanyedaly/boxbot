@@ -9,6 +9,8 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { adminTokenOk } from "@/lib/demo/admin";
 import { decToNumber, formatUsd, timeAgo } from "@/lib/format";
+import { PageHeader } from "@/app/_components/PageHeader";
+import { Stat } from "@/app/_components/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Demo visitors", robots: { index: false, follow: false } };
@@ -40,41 +42,39 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   ]);
 
   const stats = [
-    { label: "VISITORS", value: String(visitors), sub: `${named} left a name or company · ${networks} networks` },
-    { label: "RUNS TODAY", value: String(today._count._all), sub: formatUsd(decToNumber(today._sum.costUsd)) },
-    { label: "RUNS THIS MONTH", value: String(thisMonth._count._all), sub: formatUsd(decToNumber(thisMonth._sum.costUsd)) },
+    { label: "Visitors", value: String(visitors), sub: `${named} left a name or company, ${networks} networks` },
+    { label: "Runs today", value: String(today._count._all), sub: formatUsd(decToNumber(today._sum.costUsd)) },
+    { label: "Runs this month", value: String(thisMonth._count._all), sub: formatUsd(decToNumber(thisMonth._sum.costUsd)) },
   ];
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-14 flex-none items-center border-b border-border bg-surface px-4 md:px-6">
-        <h1 className="text-base font-semibold text-ink">Demo visitors</h1>
-      </header>
+      <PageHeader>
+        <h1 className="text-lg font-semibold text-ink">Demo visitors</h1>
+      </PageHeader>
       <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
         <div className="grid gap-3 sm:grid-cols-3">
           {stats.map((s) => (
-            <div key={s.label} className="rounded-[11px] border border-border bg-surface px-4 py-3">
-              <div className="font-mono text-[9.5px] font-semibold tracking-[0.06em] text-faint">{s.label}</div>
-              <div className="mt-1 font-mono text-[20px] font-semibold text-ink">{s.value}</div>
-              <div className="font-mono text-[11px] text-muted">{s.sub}</div>
+            <div key={s.label} className="rounded-lg border border-border bg-surface px-4 py-3">
+              <Stat size="lg" {...s} />
             </div>
           ))}
         </div>
 
-        <div className="mt-5 overflow-x-auto rounded-[11px] border border-border">
-          <table className="w-full min-w-[720px] whitespace-nowrap bg-surface text-left text-[12.5px]">
-            <thead className="bg-surface-2 font-mono text-[9.5px] uppercase tracking-[0.06em] text-faint">
+        <div className="mt-5 overflow-x-auto rounded-lg border border-border">
+          <table className="w-full min-w-[720px] whitespace-nowrap bg-surface text-left text-sm">
+            <thead className="text-xs text-muted">
               <tr>
-                <th className="px-4 py-2 font-semibold">Name</th>
-                <th className="px-4 py-2 font-semibold">Company</th>
-                <th className="px-4 py-2 font-semibold" title="First 6 characters of the salted IP hash: same value = same network">
+                <th className="px-4 py-2 font-medium">Name</th>
+                <th className="px-4 py-2 font-medium">Company</th>
+                <th className="px-4 py-2 font-medium" title="First 6 characters of the salted IP hash: same value = same network">
                   Network
                 </th>
-                <th className="px-4 py-2 font-semibold">First seen</th>
-                <th className="px-4 py-2 font-semibold">Last seen</th>
-                <th className="px-4 py-2 text-right font-semibold">Runs</th>
-                <th className="px-4 py-2 text-right font-semibold">Tickets</th>
-                <th className="px-4 py-2 text-right font-semibold">Spend</th>
+                <th className="px-4 py-2 font-medium">First seen</th>
+                <th className="px-4 py-2 font-medium">Last seen</th>
+                <th className="px-4 py-2 text-right font-medium">Runs</th>
+                <th className="px-4 py-2 text-right font-medium">Tickets</th>
+                <th className="px-4 py-2 text-right font-medium">Spend</th>
               </tr>
             </thead>
             <tbody>
@@ -87,11 +87,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               )}
               {rows.map((r) => (
                 <tr key={r.id} className="border-t border-border-2">
-                  <td className="px-4 py-2 text-ink">{r.name ?? <span className="text-faint">anonymous</span>}</td>
-                  <td className="px-4 py-2 text-ink-2">{r.company ?? <span className="text-faint">—</span>}</td>
-                  <td className="px-4 py-2 font-mono text-[11px] text-ink-3">{r.ipHash.slice(0, 6)}</td>
-                  <td className="px-4 py-2 font-mono text-[11px] text-muted">{r.firstSeen.toISOString().slice(0, 16).replace("T", " ")}</td>
-                  <td className="px-4 py-2 font-mono text-[11px] text-muted">{timeAgo(r.lastSeen)}</td>
+                  <td className="px-4 py-2 text-ink">{r.name ?? <span className="text-muted">anonymous</span>}</td>
+                  <td className="px-4 py-2 text-ink-2">{r.company ?? <span className="text-muted">—</span>}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-ink-3">{r.ipHash.slice(0, 6)}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-muted">{r.firstSeen.toISOString().slice(0, 16).replace("T", " ")}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-muted">{timeAgo(r.lastSeen)}</td>
                   <td className="px-4 py-2 text-right font-mono text-ink">{r.runs}</td>
                   <td className="px-4 py-2 text-right font-mono text-ink">{r.tickets}</td>
                   <td className="px-4 py-2 text-right font-mono text-ink-2">{formatUsd(decToNumber(r.spend))}</td>

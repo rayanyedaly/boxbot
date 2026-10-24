@@ -3,6 +3,8 @@ import { inboxRows, type InboxRow } from "@/lib/queries";
 import { StatusBadge, PriorityPill, ChannelTag, PlanTag, DemoTag } from "@/app/_components/Pills";
 import { formatUsd, timeAgo } from "@/lib/format";
 import { IconPlus } from "@/app/_components/icons";
+import { PageHeader } from "@/app/_components/PageHeader";
+import { buttonClass } from "@/app/_components/ui";
 import { demoContext } from "@/lib/demo/context";
 import { visibleTickets } from "@/lib/demo/tickets";
 
@@ -56,40 +58,37 @@ export default async function InboxPage({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-10 flex h-14 flex-none items-center gap-3.5 border-b border-border bg-surface px-4 md:px-6">
-        <h1 className="text-base font-semibold text-ink">Inbox</h1>
-        <span className="font-mono text-[11px] text-muted">{openCount} open</span>
-        <span className="flex-1" />
-        {/* Below lg the top bar carries this button. */}
-        <Link
-          href="/tickets/new"
-          className={`${demo ? "demo-glow " : ""}hidden h-8 items-center lg:flex gap-1.5 rounded-lg bg-accent px-3 text-[12.5px] font-semibold text-on-accent transition hover:opacity-90`}
-        >
-          <IconPlus size={14} /> Write your own ticket
-        </Link>
-      </header>
+      <PageHeader
+        sticky
+        actions={
+          // Below lg the top bar carries this button.
+          <Link
+            href="/tickets/new"
+            className={`${demo ? "demo-glow " : ""}${buttonClass()} h-8 px-3 text-sm max-lg:hidden`}
+          >
+            <IconPlus size={14} /> Write your own ticket
+          </Link>
+        }
+      >
+        <h1 className="text-lg font-semibold text-ink">Inbox</h1>
+        <span className="text-sm text-muted">{openCount} open</span>
+      </PageHeader>
 
       {/* Filter tabs */}
-      <div className="flex h-[46px] flex-none items-center gap-1 overflow-x-auto border-b border-border bg-surface px-3 [scrollbar-width:none] md:px-5">
+      <div className="flex h-11 flex-none items-end gap-5 overflow-x-auto border-b border-border bg-surface px-4 [scrollbar-width:none] md:px-6">
         {TABS.map((t) => {
           const on = filter === t.key;
           return (
             <Link
               key={t.key}
               href={t.key === "all" ? "/" : `/?filter=${t.key}`}
-              className={`flex h-[30px] flex-none items-center gap-2 rounded-[7px] px-3 text-[13px] transition ${
-                on ? "bg-accent-soft font-semibold text-accent-ink" : "text-ink-3 hover:bg-inset"
+              aria-current={on ? "page" : undefined}
+              className={`-mb-px flex h-full flex-none items-center gap-1.5 border-b-2 text-sm transition ${
+                on ? "border-ink font-medium text-ink" : "border-transparent text-ink-3 hover:text-ink"
               }`}
             >
               {t.label}
-              <span
-                className={`rounded-[5px] px-1.5 font-mono text-[10.5px] font-semibold text-accent ${
-                  on ? "bg-surface" : "bg-accent-soft"
-                }`}
-              >
-                {counts[t.key] ?? 0}
-              </span>
+              <span className="tabular-nums text-muted">{counts[t.key] ?? 0}</span>
             </Link>
           );
         })}
@@ -97,7 +96,7 @@ export default async function InboxPage({
 
       {/* Column headers */}
       <div
-        className={`hidden md:grid ${COLS} flex-none gap-3.5 border-b border-border-2 bg-surface-2 px-6 py-[9px] font-mono text-[9.5px] font-semibold uppercase tracking-[0.06em] text-faint`}
+        className={`hidden md:grid ${COLS} flex-none gap-3.5 border-b border-border-2 px-6 py-2 text-xs font-medium text-muted`}
       >
         <span>Status</span>
         <span>Ticket</span>
@@ -118,7 +117,7 @@ export default async function InboxPage({
               href={`/tickets/${r.id}`}
               aria-label={r.subject}
               data-tour={r.id === featuredId ? "featured-ticket" : undefined}
-              className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 border-b border-border-2 px-4 py-3 transition hover:bg-inset md:gap-3.5 md:px-6 md:py-[13px] ${COLS}`}
+              className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 border-b border-border-2 px-4 py-3 transition hover:bg-inset md:gap-3.5 md:px-6 md:py-3 ${COLS}`}
             >
               {/* Status */}
               <div className="col-start-1 row-start-1 md:col-auto md:row-auto">
@@ -130,14 +129,14 @@ export default async function InboxPage({
                 {r.hasDraft && <span className="h-1.5 w-1.5 flex-none rounded-full bg-accent" />}
                 <div className="min-w-0">
                   <p
-                    className={`line-clamp-2 text-[14px] text-ink md:truncate md:text-[13.5px] ${r.hasDraft ? "font-semibold" : "font-medium"}`}
+                    className={`line-clamp-2 text-base text-ink md:truncate md:text-sm ${r.hasDraft ? "font-semibold" : "font-medium"}`}
                   >
                     {r.subject}
                   </p>
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                    {demo && r.id === featuredId && <DemoTag label="START HERE" solid />}
-                    {r.visitorId && <DemoTag label="YOURS" />}
-                    <span className="text-[12px] text-ink-3">{r.customerName}</span>
+                    {demo && r.id === featuredId && <DemoTag label="Start here" solid />}
+                    {r.visitorId && <DemoTag label="Yours" />}
+                    <span className="text-xs text-ink-2">{r.customerName}</span>
                     <PlanTag plan={r.customerPlan} />
                     <PriorityPill priority={r.priority} />
                     <ChannelTag channel={r.channel} />
@@ -148,25 +147,22 @@ export default async function InboxPage({
               {/* Agent run (on phones, only once there's something to show) */}
               <div className={`col-span-2 row-start-3 min-w-0 items-center gap-2 md:col-auto md:row-auto ${o ? "flex" : "hidden md:flex"}`}>
                 {o ? (
-                  <span
-                    className="flex-none rounded-md px-2 py-[3px] text-[11px] font-semibold"
-                    style={{ color: `var(--${o.token}-fg)`, background: `var(--${o.token}-bg)` }}
-                  >
+                  <span className="flex-none text-xs font-medium" style={{ color: `var(--${o.token}-fg)` }}>
                     {o.label}
                   </span>
                 ) : (
-                  <span className="font-mono text-[10.5px] text-faint">no run</span>
+                  <span className="text-xs text-muted">No run</span>
                 )}
                 {r.toolCount > 0 && (
-                  <span className="font-mono text-[10.5px] text-faint">{r.toolCount} tools</span>
+                  <span className="text-xs text-muted">{r.toolCount} tools</span>
                 )}
                 {r.costUsd > 0 && (
-                  <span className="font-mono text-[10.5px] text-muted">{formatUsd(r.costUsd)}</span>
+                  <span className="font-mono text-xs text-muted">{formatUsd(r.costUsd)}</span>
                 )}
               </div>
 
               {/* Age */}
-              <span className="col-start-2 row-start-1 text-right font-mono text-[11px] text-faint md:col-auto md:row-auto">
+              <span className="col-start-2 row-start-1 text-right text-xs tabular-nums text-muted md:col-auto md:row-auto">
                 {timeAgo(r.updatedAt)}
               </span>
             </Link>
