@@ -29,32 +29,23 @@ function apply(next: Theme) {
   window.dispatchEvent(new Event("themechange"));
 }
 
-export function ThemeToggle() {
+/** One icon button that flips light/dark. Both icons are rendered and picked by CSS
+ *  (`dark:` follows <html data-theme>), so the right one shows before hydration.
+ *  `className` sets display + size, e.g. "hidden h-8 w-8 lg:flex" for desktop only. */
+export function ThemeToggle({ className = "flex h-8 w-8" }: { className?: string }) {
   const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-
-  const pill = (on: boolean) =>
-    `flex flex-1 items-center justify-center gap-1.5 h-7 rounded-[7px] text-xs font-semibold transition ${
-      on ? "bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,0.10)]" : "text-muted"
-    }`;
+  const label = theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
 
   return (
-    <div className="flex gap-1 rounded-[9px] border border-border bg-inset p-1">
-      <button
-        type="button"
-        onClick={() => apply("light")}
-        className={pill(theme === "light")}
-        aria-pressed={theme === "light"}
-      >
-        <IconSun size={13} /> Light
-      </button>
-      <button
-        type="button"
-        onClick={() => apply("dark")}
-        className={pill(theme === "dark")}
-        aria-pressed={theme === "dark"}
-      >
-        <IconMoon size={13} /> Dark
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={() => apply(theme === "dark" ? "light" : "dark")}
+      aria-label={label}
+      title={label}
+      className={`flex-none items-center justify-center rounded-md text-ink-3 transition hover:bg-inset hover:text-ink focus-visible:outline-2 focus-visible:outline-accent ${className}`}
+    >
+      <IconMoon size={16} className="dark:hidden" />
+      <IconSun size={16} className="hidden dark:block" />
+    </button>
   );
 }
