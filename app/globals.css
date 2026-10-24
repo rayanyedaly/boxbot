@@ -1,45 +1,50 @@
 @import "tailwindcss";
 
-/* Direction A · "Calm Console" — theme tokens. Light is default; [data-theme="dark"]
-   swaps the same variables. Set on <html> by the no-flash script + ThemeToggle. */
+/* `dark:` follows the data-theme attribute, not the OS setting. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Theme tokens. Light is the default; [data-theme="dark"] swaps the same variables.
+   Set on <html> by the no-flash script in app/layout.tsx and by ThemeToggle. */
 :root,
 [data-theme="light"] {
-  --bg: #f7f8fa;
+  --bg: #f5f5f3;
   --surface: #ffffff;
-  --surface-2: #fbfcfd;
-  --inset: #f7f8fa;
-  --border: #e7e9ee;
-  --border-2: #eef0f3;
-  --ink: #0e1422;
-  --ink-2: #353d4b;
-  --ink-3: #5b6472;
-  --muted: #8b94a3;
-  --faint: #aeb6c2;
-  --accent: #2f6df6;
-  --accent-ink: #1f55cf;
-  --accent-soft: #eef3ff;
-  --accent-bd: #d8e4ff;
+  --surface-2: #efefec;
+  --inset: #f5f5f3;
+  --border: #e2e2de;
+  --border-2: #ebebe8;
+  --ink: #1b1b1a;
+  --ink-2: #393937;
+  --ink-3: #585854;
+  --muted: #6b6b66;
+  --faint: #a1a19b;
+  --accent: #2c46c2;
+  --accent-ink: #2338a3;
+  --accent-soft: #eef0fa;
+  --accent-bd: #d4daf3;
   --on-accent: #ffffff;
-  --open: #2f6df6;
-  --open-fg: #1f55cf;
-  --open-bg: #eef3ff;
-  --pending: #b87503;
-  --pending-fg: #8a5800;
-  --pending-bg: #fbf1dd;
-  --resolved: #15935a;
-  --resolved-fg: #0c6b40;
-  --resolved-bg: #e6f6ee;
-  --escal: #d83a3f;
-  --escal-fg: #b02428;
-  --escal-bg: #fbe9ea;
-  --bar: #bcd0fb;
-  --bar-weak: #dbe1ea;
+  --open: #2c46c2;
+  --open-fg: #2338a3;
+  --open-bg: #eef0fa;
+  --pending: #a76a00;
+  --pending-fg: #7b4f00;
+  --pending-bg: #f6eedd;
+  --resolved: #1a7d4e;
+  --resolved-fg: #11613b;
+  --resolved-bg: #e4f1e9;
+  --escal: #c5353a;
+  --escal-fg: #a1262a;
+  --escal-bg: #f8e5e5;
+  --bar: #7f8dd0;
+  --bar-weak: #e0e0dc;
+  --overlay: #0d0d0e;
+  --pop-shadow: 0 12px 32px rgb(0 0 0 / 0.14), 0 1px 3px rgb(0 0 0 / 0.08);
 }
 
 [data-theme="dark"] {
   --bg: #0b1220;
   --surface: #0e1626;
-  --surface-2: #111c30;
+  --surface-2: #172540;
   --inset: #0c1424;
   --border: #1d2c45;
   --border-2: #16213a;
@@ -65,8 +70,10 @@
   --escal: #e8888c;
   --escal-fg: #f0a9ac;
   --escal-bg: #3a1c1f;
-  --bar: #2f4a82;
+  --bar: #4d6bb3;
   --bar-weak: #1a2742;
+  --overlay: #050a14;
+  --pop-shadow: 0 12px 32px rgb(0 0 0 / 0.5), 0 1px 3px rgb(0 0 0 / 0.4);
 }
 
 /* Map tokens to Tailwind v4 utilities (bg-surface, text-ink, border-border, font-mono…).
@@ -90,8 +97,28 @@
   --color-accent-soft: var(--accent-soft);
   --color-accent-bd: var(--accent-bd);
   --color-on-accent: var(--on-accent);
-  --font-sans: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --color-overlay: var(--overlay);
+  --shadow-pop: var(--pop-shadow);
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+}
+
+/* One small type scale instead of ad-hoc pixel sizes. */
+@theme {
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.375rem;
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2rem;
 }
 
 html,
@@ -99,10 +126,16 @@ body {
   height: 100%;
 }
 
+/* One focus ring for every interactive element (links, rows, tabs, icon buttons). */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
   transition:
     background-color 0.2s ease,
     color 0.2s ease;
@@ -110,30 +143,29 @@ body {
 
 /* ---- Public demo: highlighted CTA + guided tour (driver.js, themed to the tokens) ---- */
 .demo-glow {
-  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
-  animation: demo-glow 2.4s ease-out infinite;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 30%, transparent);
+  animation: demo-glow 3s ease-out infinite;
 }
 @keyframes demo-glow {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
-  70% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 0%, transparent); }
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 30%, transparent); }
+  60% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 0%, transparent); }
   100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
 }
 
 .driver-popover.bb-tour {
-  font-family: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
   background: var(--surface);
   color: var(--ink);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 16px 16px 14px;
   min-width: min(280px, calc(100vw - 32px));
   max-width: min(330px, calc(100vw - 32px));
-  box-shadow: 0 18px 48px rgba(8, 12, 24, 0.28), 0 2px 6px rgba(8, 12, 24, 0.12);
+  box-shadow: var(--pop-shadow);
 }
 .bb-tour .driver-popover-title {
   font-size: 15px;
   font-weight: 600;
-  letter-spacing: -0.01em;
   line-height: 1.35;
   padding-right: 20px;
 }
@@ -146,11 +178,10 @@ body {
 .bb-tour .bb-tour-step {
   display: block;
   margin-bottom: 6px;
-  font-family: var(--font-jetbrains), ui-monospace, monospace;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  color: var(--accent-ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
 }
 .bb-tour .bb-tour-hint {
   display: flex;
@@ -177,7 +208,7 @@ body {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--ink-3);
-  border-radius: 7px;
+  border-radius: 6px;
   padding: 5px 11px;
   font-size: 12px;
   font-weight: 600;
