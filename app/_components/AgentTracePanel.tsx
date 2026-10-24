@@ -9,6 +9,8 @@ import { formatUsd } from "@/lib/format";
 import { emitRun } from "@/lib/demo/events";
 import type { Quota } from "@/lib/demo/runs";
 import { IconActivity, IconPanelCollapse, IconCheck, IconWarning } from "./icons";
+import { ThemeToggle } from "./ThemeToggle";
+import { buttonClass, SectionLabel, Stat } from "./ui";
 
 type DoneSummary = {
   type: "done";
@@ -21,16 +23,6 @@ type DoneSummary = {
   hitIterationCap: boolean;
 };
 type StreamMsg = AgentEvent | DoneSummary | { type: "error"; message: string };
-
-function SummaryCell({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div>
-      <div className="font-mono text-[9.5px] tracking-[0.05em] text-faint">{label}</div>
-      <div className="mt-0.5 font-mono text-[15px] font-semibold text-ink">{value}</div>
-      {sub && <div className="font-mono text-[10px] text-faint">{sub}</div>}
-    </div>
-  );
-}
 
 export function AgentTracePanel({
   ticketId,
@@ -148,30 +140,24 @@ export function AgentTracePanel({
   const callsN = summary ? summary.llmCalls : trace.modelCalls;
 
   if (collapsed) {
+    // Collapsing is desktop-only, so this strip still owns the top-right theme toggle.
     return (
-      <button
-        type="button"
-        onClick={() => setCollapsed(false)}
-        aria-label="Expand agent run panel"
-        aria-expanded={false}
-        className="flex h-full w-[54px] flex-none cursor-pointer flex-col items-center gap-4 border-l border-border bg-surface pt-4"
-      >
-        <span className="text-faint">
-          <IconPanelCollapse size={16} />
-        </span>
-        <span
-          className="font-mono text-[10px] font-semibold tracking-[0.1em] text-ink-3"
-          style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+      <div className="flex h-full w-14 flex-none flex-col items-center border-l border-border bg-surface">
+        <div className="flex h-14 w-full flex-none items-center justify-center border-b border-border">
+          <ThemeToggle className="hidden h-8 w-8 lg:flex" />
+        </div>
+        <button
+          type="button"
+          onClick={() => setCollapsed(false)}
+          aria-label="Expand agent run panel"
+          aria-expanded={false}
+          title="Expand agent run panel"
+          className="flex w-full flex-1 cursor-pointer flex-col items-center gap-2 pt-3 text-muted hover:bg-inset hover:text-ink"
         >
-          AGENT RUN
-        </span>
-        <span
-          className="font-mono text-[10px] text-faint"
-          style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
-        >
-          {formatUsd(cost)}
-        </span>
-      </button>
+          <IconActivity size={16} />
+          <span className="font-mono text-2xs">{formatUsd(cost)}</span>
+        </button>
+      </div>
     );
   }
 
@@ -181,41 +167,44 @@ export function AgentTracePanel({
       className="flex w-full flex-col border-t border-border bg-surface pb-[68px] lg:h-full lg:w-[374px] lg:flex-none lg:border-l lg:border-t-0 lg:pb-0"
     >
       {/* Header */}
-      <div className="flex h-[54px] flex-none items-center gap-2 border-b border-border-2 px-[18px]">
-        <span className="text-ink-3">
+      <div className="flex h-14 flex-none items-center gap-1 border-b border-border pl-4 pr-3">
+        <span className="mr-1 text-ink-3">
           <IconActivity size={15} />
         </span>
         <span className="flex-1 text-sm font-semibold text-ink">Agent run</span>
         <button
           type="button"
           onClick={() => setCollapsed(true)}
-          className="hidden text-faint hover:text-ink-3 lg:block"
-          aria-label="Collapse trace"
+          className="hidden h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-inset hover:text-ink lg:flex"
+          aria-label="Collapse agent run panel"
+          aria-expanded={true}
+          title="Collapse agent run panel"
         >
           <IconPanelCollapse size={16} />
         </button>
+        <ThemeToggle className="hidden h-8 w-8 lg:flex" />
       </div>
 
       {/* Summary grid */}
-      <div className="grid grid-cols-2 gap-x-2.5 gap-y-3 px-[18px] py-3.5">
-        <SummaryCell label="COST" value={formatUsd(cost)} />
-        <SummaryCell label="LATENCY" value={`${(trace.latencyMs / 1000).toFixed(1)}s`} />
-        <SummaryCell label="MODEL CALLS" value={String(callsN)} />
-        <SummaryCell label="TOOL CALLS" value={String(toolN)} />
+      <div className="grid grid-cols-2 gap-x-3 gap-y-3 border-b border-border-2 px-4 py-4">
+        <Stat label="Cost" value={formatUsd(cost)} />
+        <Stat label="Latency" value={`${(trace.latencyMs / 1000).toFixed(1)}s`} />
+        <Stat label="Model calls" value={String(callsN)} />
+        <Stat label="Tool calls" value={String(toolN)} />
       </div>
 
       {/* Timeline */}
       <div
-        className="px-[18px] pt-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
+        className="px-4 pt-3.5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
         aria-live="polite"
         aria-busy={running}
       >
-        <div className="pb-2 font-mono text-[9.5px] font-semibold tracking-[0.06em] text-faint">
-          {showLive ? "LIVE RUN" : `TOOL CHAIN · ${trace.steps.length} STEPS`}
-        </div>
+        <SectionLabel className="pb-2.5">
+          {showLive ? "Live run" : `Tool chain, ${trace.steps.length} steps`}
+        </SectionLabel>
 
         {!showLive && !trace.hasRun && (
-          <p className="py-6 text-[12px] text-muted">
+          <p className="py-6 text-xs text-muted">
             No agent run yet. Run the agent to draft a reply.
           </p>
         )}
@@ -226,12 +215,10 @@ export function AgentTracePanel({
             if (s.kind === "compaction") {
               return (
                 <div key={s.index} className="relative pb-3.5 pl-8">
-                  <span className="absolute left-[3px] top-0.5 flex h-4 w-4 items-center justify-center rounded-[5px] border border-dashed border-accent-bd bg-accent-soft" />
-                  <div className="rounded-lg border border-dashed border-accent-bd bg-accent-soft px-2.5 py-2">
-                    <div className="font-mono text-[9.5px] font-semibold tracking-[0.06em] text-accent-ink">
-                      CONTEXT COMPACTED
-                    </div>
-                    <div className="mt-0.5 font-mono text-[10.5px] text-muted">{s.detail}</div>
+                  <span className="absolute left-[5px] top-1.5 h-2.5 w-2.5 rounded-xs bg-accent" />
+                  <div className="rounded-md bg-inset px-2.5 py-2">
+                    <div className="text-xs font-medium text-accent-ink">Context compacted</div>
+                    <div className="mt-0.5 font-mono text-2xs text-muted">{s.detail}</div>
                   </div>
                 </div>
               );
@@ -242,20 +229,20 @@ export function AgentTracePanel({
                   <span className="absolute left-[10px] top-5 bottom-[-3px] w-px bg-border-2" />
                 )}
                 <span
-                  className="absolute left-0.5 top-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full font-mono text-[9px] font-bold"
+                  className="absolute left-0.5 top-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full font-mono text-2xs font-medium"
                   style={
                     terminal
-                      ? { background: "var(--accent)", color: "var(--on-accent)" }
-                      : { background: "var(--surface)", border: "1.5px solid var(--border)", color: "var(--muted)" }
+                      ? { background: "var(--ink)", color: "var(--bg)" }
+                      : { background: "var(--surface)", border: "1px solid var(--border)", color: "var(--muted)" }
                   }
                 >
                   {terminal ? <IconCheck size={10} /> : s.index}
                 </span>
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-mono text-[12px] font-semibold text-ink">{s.name}</span>
+                  <span className="font-mono text-xs font-medium text-ink">{s.name}</span>
                 </div>
                 {s.detail && (
-                  <div className="mt-0.5 truncate font-mono text-[10.5px] text-muted">{s.detail}</div>
+                  <div className="mt-0.5 truncate font-mono text-2xs text-muted">{s.detail}</div>
                 )}
               </div>
             );
@@ -263,9 +250,9 @@ export function AgentTracePanel({
 
         {showLive &&
           events.map(({ id, event }) => <LiveRow key={id} event={event} />)}
-        {running && events.length === 0 && <p className="py-2 text-[11px] text-faint">Starting run…</p>}
+        {running && events.length === 0 && <p className="py-2 text-xs text-muted">Starting run…</p>}
         {error && (
-          <p className="flex items-center gap-1 py-2 font-mono text-[11px] text-[color:var(--escal-fg)]">
+          <p className="flex items-center gap-1 py-2 text-xs text-[color:var(--escal-fg)]">
             <IconWarning size={12} /> {error}
           </p>
         )}
@@ -274,25 +261,25 @@ export function AgentTracePanel({
       {/* Footer */}
       {/* On phones a bar fixed to the bottom of the screen, so Run is in reach from
           anywhere on the ticket (the panel reserves its height with pb-[68px]). */}
-      <div className="fixed inset-x-0 bottom-0 z-30 flex flex-none items-center justify-between gap-3 border-t border-border-2 bg-surface px-[18px] py-3 shadow-[0_-4px_16px_rgba(8,12,24,0.08)] lg:static lg:z-auto lg:shadow-none">
+      <div className="fixed inset-x-0 bottom-0 z-30 flex flex-none items-center justify-between gap-3 border-t border-border bg-surface px-4 py-3 lg:static lg:z-auto">
         <button
           type="button"
           data-tour="run-agent"
           onClick={run}
           disabled={running || (!!quota && (quota.runsLeft === 0 || quota.resting !== null))}
-          className="h-10 rounded-md bg-accent px-4 text-[13px] font-semibold text-on-accent transition hover:opacity-90 disabled:opacity-60 lg:h-auto lg:px-3 lg:py-1.5 lg:text-[12px]"
+          className={`${buttonClass()} h-10 px-4 text-sm lg:h-8 lg:px-3`}
         >
           {running ? "Running…" : trace.hasRun ? "Re-run agent" : "Run agent"}
         </button>
         {quota && !summary && (
-          <span className="text-right font-mono text-[10px] leading-snug text-ink-3">
+          <span className="text-right text-xs leading-snug text-muted">
             {quota.resting
-              ? `demo budget used · back ${quota.resting === "day" ? "00:00 UTC" : "next month"}`
-              : `live Claude run · ${quota.runsLeft}/${quota.runsLimit} left in 24h`}
+              ? `Demo budget used. Back ${quota.resting === "day" ? "at 00:00 UTC" : "next month"}`
+              : `Live Claude run, ${quota.runsLeft}/${quota.runsLimit} left in 24h`}
           </span>
         )}
         {summary && (
-          <span className="font-mono text-[10px] text-faint">
+          <span className="font-mono text-2xs text-muted">
             {summary.compactions > 0 ? `${summary.compactions} compaction · ` : ""}
             {summary.stopReason}
           </span>
@@ -306,27 +293,27 @@ function LiveRow({ event }: { event: AgentEvent }) {
   const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n) + "…" : s);
   switch (event.type) {
     case "text":
-      return <p className="pb-2 text-[12px] leading-relaxed text-ink-2">{event.text}</p>;
+      return <p className="pb-2 text-xs leading-relaxed text-ink-2">{event.text}</p>;
     case "tool_use":
       return (
-        <div className="pb-1.5 font-mono text-[11px] [overflow-wrap:anywhere]">
+        <div className="pb-1.5 font-mono text-xs [overflow-wrap:anywhere]">
           <span className="font-semibold text-accent-ink">{event.name}</span>
-          <span className="text-faint">({trunc(JSON.stringify(event.input), 60)})</span>
+          <span className="text-muted">({trunc(JSON.stringify(event.input), 60)})</span>
         </div>
       );
     case "tool_result":
       return (
-        <div className="pb-2 font-mono text-[10.5px] text-muted [overflow-wrap:anywhere]">↳ {trunc(JSON.stringify(event.result), 90)}</div>
+        <div className="pb-2 font-mono text-2xs text-muted [overflow-wrap:anywhere]">↳ {trunc(JSON.stringify(event.result), 90)}</div>
       );
     case "llm_call":
       return (
-        <div className="pb-2 font-mono text-[10.5px] text-faint">
+        <div className="pb-2 font-mono text-2xs text-muted">
           {event.model} · ${event.costUsd.toFixed(6)}
         </div>
       );
     case "compaction":
       return (
-        <div className="pb-2 font-mono text-[10.5px]" style={{ color: "var(--accent-ink)" }}>
+        <div className="pb-2 font-mono text-2xs" style={{ color: "var(--accent-ink)" }}>
           context compacted: {event.tokensBefore}→{event.tokensAfter} (saved {event.tokensSaved})
         </div>
       );

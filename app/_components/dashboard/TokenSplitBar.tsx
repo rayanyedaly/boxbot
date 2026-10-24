@@ -3,14 +3,14 @@ import { formatTokens } from "@/lib/format";
 
 function Bar({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
   return (
-    <div className="mb-[13px]">
-      <div className="mb-1 flex items-center justify-between font-mono">
-        <span className="text-[11px] text-ink-3">{label}</span>
-        <span className="text-[11.5px] font-semibold text-ink">{formatTokens(value)}</span>
+    <div className="mb-3">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs text-ink-3">{label}</span>
+        <span className="font-mono text-xs font-medium text-ink">{formatTokens(value)}</span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-[3px] bg-inset">
+      <div className="h-1.5 overflow-hidden rounded-sm bg-inset">
         <div
-          className="h-full rounded-[3px]"
+          className="h-full rounded-sm"
           style={{ width: `${(value / total) * 100}%`, background: color }}
         />
       </div>

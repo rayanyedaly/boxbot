@@ -19,72 +19,62 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const PRIORITY_VAR: Record<string, string> = {
-  URGENT: "--escal",
-  HIGH: "--pending",
-  MEDIUM: "--accent",
+  URGENT: "--escal-fg",
+  HIGH: "--pending-fg",
+  MEDIUM: "--ink-3",
   LOW: "--muted",
 };
 
-/** Dot + colored label badge (the primary status indicator). */
+const title = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
+
+/** Dot + colored label (the primary status indicator). */
 export function StatusBadge({ status }: { status: string }) {
   const t = STATUS_TOKEN[status] ?? "open";
   return (
-    <span className="inline-flex items-center gap-2">
-      <span className="h-[7px] w-[7px] rounded-full" style={{ background: `var(--${t})` }} />
-      <span
-        className="rounded-[5px] px-2 py-0.5 text-[12px] font-semibold"
-        style={{ color: `var(--${t}-fg)`, background: `var(--${t}-bg)` }}
-      >
-        {STATUS_LABEL[status] ?? status}
-      </span>
-    </span>
-  );
-}
-
-/** Label-only status pill (no dot) — for tight spots. */
-export function StatusPill({ status }: { status: string }) {
-  const t = STATUS_TOKEN[status] ?? "open";
-  return (
-    <span
-      className="inline-flex items-center rounded-[5px] px-2 py-0.5 text-[12px] font-semibold"
-      style={{ color: `var(--${t}-fg)`, background: `var(--${t}-bg)` }}
-    >
+    <span className="inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: `var(--${t}-fg)` }}>
+      <span className="h-2 w-2 flex-none rounded-full" style={{ background: `var(--${t})` }} />
       {STATUS_LABEL[status] ?? status}
     </span>
   );
 }
 
-/** Vertical priority bar + label (design style). */
+/** Smaller dot + label, for table cells. */
+export function StatusPill({ status }: { status: string }) {
+  const t = STATUS_TOKEN[status] ?? "open";
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium" style={{ color: `var(--${t}-fg)` }}>
+      <span className="h-1.5 w-1.5 flex-none rounded-full" style={{ background: `var(--${t})` }} />
+      {STATUS_LABEL[status] ?? status}
+    </span>
+  );
+}
+
+/** Priority as colored text; low priority stays quiet. */
 export function PriorityPill({ priority }: { priority: string }) {
   const v = PRIORITY_VAR[priority] ?? "--muted";
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className="h-2.5 w-1 rounded-[2px]" style={{ background: `var(${v})` }} />
-      <span className="font-mono text-[10px] font-semibold" style={{ color: `var(${v})` }}>
-        {priority.charAt(0) + priority.slice(1).toLowerCase()}
-      </span>
+    <span className="text-xs font-medium" style={{ color: `var(${v})` }}>
+      {title(priority)}
     </span>
   );
 }
 
+const CHANNEL_LABEL: Record<string, string> = { EMAIL: "Email", CHAT: "Chat", WHATSAPP: "WhatsApp", WEB: "Web" };
+
 export function ChannelTag({ channel }: { channel: string }) {
-  return <span className="font-mono text-[10.5px] text-faint">{channel.toLowerCase()}</span>;
+  return <span className="text-xs text-muted">{CHANNEL_LABEL[channel] ?? title(channel)}</span>;
 }
 
 export function PlanTag({ plan }: { plan: string }) {
-  return (
-    <span className="rounded-[4px] border border-border px-1.5 py-px text-[10.5px] font-medium text-faint">
-      {plan}
-    </span>
-  );
+  return <span className="text-xs text-muted">{title(plan)}</span>;
 }
 
-/** Public-demo marker: solid for "start here", soft for "yours". */
+/** Public-demo marker: solid for "start here", outlined for "yours". */
 export function DemoTag({ label, solid = false }: { label: string; solid?: boolean }) {
   return (
     <span
-      className={`rounded-[5px] px-1.5 py-px font-mono text-[9.5px] font-semibold tracking-[0.04em] ${
-        solid ? "bg-accent text-on-accent" : "bg-accent-soft text-accent-ink"
+      className={`rounded-sm px-1.5 text-2xs font-medium ${
+        solid ? "bg-accent text-on-accent" : "border border-accent-bd text-accent-ink"
       }`}
     >
       {label}

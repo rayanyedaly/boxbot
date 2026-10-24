@@ -14,6 +14,7 @@ import "driver.js/dist/driver.css";
 import { REPLAY_EVENT, RUN_EVENT, type RunPhase } from "@/lib/demo/events";
 import { saveProfile } from "@/app/actions/demo";
 import { BrandMark } from "./BrandMark";
+import { buttonClass } from "./ui";
 
 type Stage = "welcome" | "inbox" | "ticket" | "done";
 
@@ -185,10 +186,10 @@ export function DemoTour({ runsLimit, model }: { runsLimit: number; model: strin
     const d = driver({
       steps,
       animate: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-      overlayColor: "#080c18",
+      overlayColor: "#0d0d0e",
       overlayOpacity: 0.55,
       stagePadding: 6,
-      stageRadius: 10,
+      stageRadius: 8,
       popoverClass: "bb-tour",
       overlayClickBehavior: "none",
       allowKeyboardControl: false, // arrow keys would skip the "click this" steps (Escape: see below)
@@ -290,26 +291,26 @@ function WelcomeCard({
   }, []);
 
   const input =
-    "h-9 rounded-lg border border-border bg-inset px-2.5 text-[13px] text-ink outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/40";
+    "h-9 rounded-md border border-border bg-surface px-2.5 text-sm text-ink outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/40";
 
   return (
     <dialog
       ref={ref}
       aria-labelledby="bb-welcome-title"
-      className="m-auto w-[calc(100%-32px)] max-w-[440px] rounded-2xl border border-border bg-surface p-6 text-ink shadow-[0_24px_64px_rgba(8,12,24,0.35)] backdrop:bg-[#080c18]/55"
+      className="m-auto w-[calc(100%-32px)] max-w-[440px] rounded-lg border border-border bg-surface p-6 text-ink shadow-pop backdrop:bg-black/50"
     >
       <div className="flex items-center gap-2.5">
         <BrandMark />
-        <span className="font-mono text-[10px] font-semibold tracking-[0.08em] text-accent-ink">LIVE DEMO</span>
+        <span className="text-sm font-medium text-ink-3">Live demo</span>
       </div>
-      <h2 id="bb-welcome-title" className="mt-4 text-[20px] font-semibold tracking-[-0.02em] text-ink">
+      <h2 id="bb-welcome-title" className="mt-4 text-xl font-semibold text-ink">
         Meet BoxBot, an AI support agent
       </h2>
-      <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">
+      <p className="mt-2 text-sm leading-relaxed text-ink-2">
         It reads a support ticket, looks things up with its own tools (customers, orders, the knowledge base), and
         stages a reply that a person approves. Every model call is logged with its cost.
       </p>
-      <p className="mt-2 text-[13px] leading-relaxed text-ink-3">
+      <p className="mt-2 text-sm leading-relaxed text-ink-3">
         The tour takes 30 seconds. You get {runsLimit} live agent runs per 24 hours.
       </p>
 
@@ -321,13 +322,13 @@ function WelcomeCard({
         }}
       >
         <div className="grid gap-2.5 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-[11.5px] font-medium text-ink-3">
+          <label className="flex flex-col gap-1 text-xs font-medium text-ink-3">
             <span className="flex items-baseline justify-between">
               Your name <span className="font-normal text-muted">optional</span>
             </span>
             <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="name" className={input} />
           </label>
-          <label className="flex flex-col gap-1 text-[11.5px] font-medium text-ink-3">
+          <label className="flex flex-col gap-1 text-xs font-medium text-ink-3">
             <span className="flex items-baseline justify-between">
               Company <span className="font-normal text-muted">optional</span>
             </span>
@@ -340,20 +341,20 @@ function WelcomeCard({
             />
           </label>
         </div>
-        <p className="mt-2 text-[11.5px] text-ink-3">Only used to count who tried the demo. No account, no email.</p>
+        <p className="mt-2 text-xs text-ink-3">Only used to count who tried the demo. No account, no email.</p>
 
         <div className="mt-5 flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={onSkip}
-            className="rounded-lg px-3 py-2 text-[13px] font-medium text-ink-3 hover:bg-inset hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+            className={`${buttonClass("ghost")} px-3 py-2 text-sm`}
           >
             Skip, I&apos;ll explore
           </button>
           <button
             type="submit"
             autoFocus
-            className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className={`${buttonClass()} px-4 py-2 text-sm`}
           >
             Start the tour
           </button>
@@ -369,7 +370,7 @@ export function ReplayTourButton() {
     <button
       type="button"
       onClick={() => window.dispatchEvent(new Event(REPLAY_EVENT))}
-      className="text-[11.5px] font-medium text-accent-ink hover:underline"
+      className="text-xs font-medium text-accent-ink hover:underline"
     >
       Replay tour
     </button>
