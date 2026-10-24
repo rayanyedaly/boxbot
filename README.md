@@ -134,7 +134,7 @@ the agent-run trace panel (cost, latency, and the reconstructed tool chain), in 
 | UI runtime | React / React DOM | `^19.2.7` |
 | Language | TypeScript | `^6.0.3` |
 | Styling | Tailwind CSS v4 (`@tailwindcss/postcss`) | `^4.3.1` |
-| Fonts | `next/font/google` — Schibsted Grotesk (UI), JetBrains Mono (data) | — |
+| Fonts | `next/font/local` — IBM Plex Sans (UI), IBM Plex Mono (data), self-hosted | — |
 | LLM SDK | `@anthropic-ai/sdk` (used directly, no agent framework) | `^0.104.2` |
 | ORM | Prisma (`@prisma/client` + `prisma`) | `^6.19.3` |
 | Database | PostgreSQL (Docker) | `16` |
@@ -392,8 +392,11 @@ crossing to any Client Component.
 ## UI & theming
 
 The interface is a sidebar console (Inbox / Dashboard / Knowledge base), built with Tailwind v4
-and no component or chart library. UI text uses **Schibsted Grotesk**; all data (IDs, costs,
-tokens, latency, statuses) uses **JetBrains Mono**.
+and no component or chart library. UI text uses **IBM Plex Sans**; data (IDs, costs, token
+counts, tool names, the model id) uses **IBM Plex Mono**. Both are self-hosted woff2 files in
+`app/fonts/`, so the build never fetches fonts. Sizes come from one small type scale defined in
+`@theme` (`text-2xs` 11px up to `text-2xl` 24px), and shared card/stat/button styles live in
+`app/_components/ui.tsx`.
 
 **Theming** is CSS-variable driven. `app/globals.css` defines the full token set on
 `:root, [data-theme="light"]` and overrides it on `[data-theme="dark"]` — background/surface,
@@ -408,11 +411,15 @@ The light/dark switch:
 - A small inline script in `<head>` sets `document.documentElement.dataset.theme` from
   `localStorage` / `prefers-color-scheme` **before paint** (no flash); `<html>` carries
   `suppressHydrationWarning`.
-- `ThemeToggle` reads the theme with `useSyncExternalStore` (subscribing to a custom `themechange`
-  window event) and, on click, writes `data-theme` + `localStorage` and dispatches the event.
+- `ThemeToggle` is a single icon button in the top-right corner (in each page header from `lg`
+  up, in the agent panel header on a ticket, in the top bar on phones). It reads the theme with
+  `useSyncExternalStore` (subscribing to a custom `themechange` window event) and, on click,
+  writes `data-theme` + `localStorage` and dispatches the event. Both icons are rendered and a
+  `dark:` variant bound to `data-theme` picks one, so the icon is right before hydration.
 
-Only `Sidebar`-nav, `ThemeToggle`, `AgentTracePanel`, `ApproveButton`, and `KbRail` are client
-components; everything else is server-rendered. Icons are an inline SVG set (`currentColor`).
+The client components are `AppShell` (the phone drawer), `SidebarNav`, `ThemeToggle`,
+`AgentTracePanel`, `ApproveButton`, `ResetTicketButton`, `KbRail`, `NewTicketForm` and
+`DemoTour`; everything else is server-rendered. Icons are an inline SVG set (`currentColor`).
 
 ---
 
@@ -550,7 +557,7 @@ app/
   kb/                    # knowledge base browser (layout + index + reader)
   api/tickets/[id]/run/route.ts   # NDJSON agent-run stream
   actions/messages.ts    # approveMessage (HITL)
-  _components/           # Sidebar, ThemeToggle, Pills, AgentTracePanel, dashboard/*, kb/*, icons
+  _components/           # AppShell, Sidebar, PageHeader, ThemeToggle, ui, Pills, AgentTracePanel, dashboard/*, kb/*, icons
 scripts/run-agent.ts     # CLI: run the loop on a ticket and print the trace
 tests/                   # vitest: unit (cost/loop/context) + integration (tools/hitl)
 .github/workflows/ci.yml # CI
