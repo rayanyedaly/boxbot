@@ -20,6 +20,12 @@ const MODEL_ROLE: Record<string, string> = {
 export default async function DashboardPage() {
   const demo = await demoContext();
   const s = await dashboardStats(demo ? { all: false, visitorId: demo.visitorId } : { all: true });
+  // The API's input_tokens excludes cached tokens, so the prompt is all three parts.
+  const promptTokens = s.inputTokens + s.cacheReadTokens + s.cacheWriteTokens;
+  const cacheRatio = promptTokens ? s.cacheReadTokens / promptTokens : 0;
+  // Never round a small hit rate to "0%" or a partial one up to "100%".
+  const cachePct =
+    cacheRatio > 0 && cacheRatio < 0.01 ? "<1" : cacheRatio > 0.99 && cacheRatio < 1 ? ">99" : String(Math.round(cacheRatio * 100));
   const maxModel = Math.max(...s.spendByModel.map((m) => m.spend), 0.000001);
 
   return (
@@ -35,12 +41,18 @@ export default async function DashboardPage() {
           {[
             { label: "Total spend", value: formatUsd(s.totalSpend), sub: `${s.totalCalls} model calls` },
             { label: "Tickets resolved", value: String(s.resolvedCount), sub: `of ${s.totalTickets} tickets` },
-            { label: "Avg cost per resolved", value: formatUsd(s.avgCostPerResolved), sub: `over ${s.resolvedCount} resolved ticket${s.resolvedCount === 1 ? "" : "s"}` },
             {
-              label: "Tokens",
-              value: formatTokens(s.inputTokens + s.outputTokens),
-              sub: `${formatTokens(s.cacheReadTokens)} from cache`,
-              subColor: s.cacheReadTokens > 0 ? "var(--resolved-fg)" : undefined,
+              label: "Avg cost per resolved",
+              value: s.resolvedWithRuns ? formatUsd(s.avgCostPerResolved) : "—",
+              sub: s.resolvedWithRuns
+                ? `over ${s.resolvedWithRuns} resolved with agent runs`
+                : "no agent runs on resolved tickets",
+            },
+            {
+              label: "Tokens processed",
+              value: formatTokens(promptTokens + s.outputTokens),
+              sub: `${cachePct}% of input cached`,
+              subColor: cacheRatio > 0 ? "var(--resolved-fg)" : undefined,
             },
           ].map((k) => (
             <div key={k.label} className="bg-surface px-4 py-3.5 sm:px-5 sm:py-4">
@@ -51,11 +63,11 @@ export default async function DashboardPage() {
 
         {/* Spend by day + token economics */}
         <div className="grid gap-3.5 lg:grid-cols-[1.6fr_1fr]">
-          <Card title="Spend by day" sub="USD, all model calls">
+          <Card title="Spend by day" sub="USD, last 14 days">
             <SpendBars data={s.spendByDay} />
           </Card>
           <Card title="Token economics">
-            <TokenBars input={s.inputTokens} output={s.outputTokens} cache={s.cacheReadTokens} />
+            <TokenBars input={s.inputTokens} cacheWrite={s.cacheWriteTokens} cacheRead={s.cacheReadTokens} output={s.outputTokens} />
             <div className="mt-1 border-t border-border-2 pt-3">
               <SectionLabel>Saved by context compaction</SectionLabel>
               <div className="mt-1 flex items-baseline gap-2">

@@ -11,14 +11,20 @@ export function SpendBars({ data }: { data: { day: string; spend: number }[] }) 
   return (
     <div>
       <div className="mb-4 font-mono text-2xs text-muted">
-        peak {formatUsd(peak.spend)} · {peak.day.slice(5)}
+        Peak {formatUsd(peak.spend)} · {peak.day.slice(5)}
       </div>
-      <div className="flex items-end gap-2" style={{ height: 176 }}>
+      <div
+        className="flex gap-2"
+        style={{ height: 176 }}
+        role="img"
+        aria-label={`Daily spend over ${data.length} day${data.length === 1 ? "" : "s"}, peak ${formatUsd(peak.spend)} on ${peak.day.slice(5)}`}
+      >
         {data.map((d, i) => {
           const last = i === data.length - 1;
           return (
             <div key={d.day} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-              <div className="flex w-full items-end" style={{ height: 176 }}>
+              {/* The track takes what the date label leaves, so the tallest bar stays inside the row. */}
+              <div className="flex min-h-0 w-full flex-1 items-end">
                 <div
                   className="w-full"
                   style={{
