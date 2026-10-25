@@ -1,6 +1,6 @@
 # BoxBot — support inbox agent
 
-**Live demo: [web-production-e044a9.up.railway.app](https://https://boxbot-demo.up.railway.app)** (no login; a 30-second tour shows you around)
+**Live demo: [boxbot-demo.up.railway.app](https://boxbot-demo.up.railway.app)** (no login; a 30-second tour shows you around)
 
 [![CI](https://github.com/rayanyedaly/boxbot/actions/workflows/ci.yml/badge.svg)](https://github.com/rayanyedaly/boxbot/actions/workflows/ci.yml)
 
@@ -90,8 +90,9 @@ stalled instead of answering. Fixing search alone was worth ~23 points; no case,
 regex changed along the way. The held-out split — frozen before any of this, never used to
 pick a change — scores at least as well as dev, so the gain isn't tuned to the dev cases.
 Moving the agent to Sonnet 5.5 (same prompts and tools) added ~11 points while halving cost
-per ticket and cutting p50 latency from 22s to 8s; the remaining 4.6 failures were mostly
-drafts embellishing beyond what the tools returned. Single-trial rows carry a ±15-point
+per ticket and cutting p50 latency from 22s to 8s. The failures Sonnet 4.6 still had were mostly
+drafts embellishing beyond what the tools returned; Sonnet 5.5's 6 failing runs (of 90) fall in
+three cases: `refund-already-issued`, `question-not-in-kb` and `injection-fake-approval`. Single-trial rows carry a ±15-point
 interval; read the 3-trial rows as the numbers. How the judge was chosen:
 [`judge-agreement.md`](evals/results/judge-agreement.md). Caveat: the judge is also Sonnet
 5.5, so on the last row it grades its own model's drafts; the hard checks (status,
@@ -118,6 +119,7 @@ escalation team, tools, required facts, privacy) don't depend on it.
 - [Testing & CI](#testing--ci)
 - [Evals](#evals)
 - [Public demo (Railway)](#public-demo-railway)
+- [Infrastructure (AWS CDK)](#infrastructure-aws-cdk--separate-artifact)
 - [Current scope & limitations](#current-scope--limitations)
 
 ---
@@ -305,12 +307,12 @@ fraud to `trust_and_safety` and recurring technical issues to `engineering`; and
 `lib/agent/context.ts` implements a hand-rolled compaction step (this is not the API's server-side
 compaction). `maybeCompact({ ticketId, system, tools, messages, liveTokens })` returns a
 `CompactionResult` and no-ops in two cases: when `liveTokens ≤ COMPACTION_TOKEN_THRESHOLD`
-(default 12,000), or when there are not more than `RECENT_TURNS_KEPT` (default 4) assistant turns
+(default 12,000), or when there are not more than `COMPACTION_RECENT_TURNS` (default 4) assistant turns
 to collapse.
 
 When it does compact, it:
 
-1. Picks a split point at the start of the last `RECENT_TURNS_KEPT` assistant turns, so the cut
+1. Picks a split point at the start of the last `COMPACTION_RECENT_TURNS` assistant turns, so the cut
    never lands between a `tool_use` block and its matching `tool_result`.
 2. Summarizes the older turns with `SUMMARY_MODEL` (`claude-haiku-5-5`) via a non-streaming
    `messages.create`, preserving the resolved customer, order facts, KB policy points, ticket
@@ -716,7 +718,7 @@ on `main`, a separate job with no `npm` and no repo scripts commits the refreshe
 
 ## Public demo (Railway)
 
-Live at **https://web-production-e044a9.up.railway.app**.
+Live at **[boxbot-demo.up.railway.app](https://boxbot-demo.up.railway.app)**.
 
 The live demo runs on Railway, declared as code in [`railway/railway.ts`](railway/railway.ts)
 (Railway IaC; runbook in [`railway/README.md`](railway/README.md)): Postgres, the app built
