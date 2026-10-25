@@ -1,6 +1,6 @@
 # BoxBot — support inbox agent
 
-**Live demo: [web-production-e044a9.up.railway.app](https://web-production-e044a9.up.railway.app)** (no login; a 30-second tour shows you around)
+**Live demo: [web-production-e044a9.up.railway.app](https://https://boxbot-demo.up.railway.app)** (no login; a 30-second tour shows you around)
 
 [![CI](https://github.com/rayanyedaly/boxbot/actions/workflows/ci.yml/badge.svg)](https://github.com/rayanyedaly/boxbot/actions/workflows/ci.yml)
 
