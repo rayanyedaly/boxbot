@@ -18,13 +18,25 @@ function Bar({ label, value, total, color }: { label: string; value: number; tot
   );
 }
 
-export function TokenBars({ input, output, cache }: { input: number; output: number; cache: number }) {
-  const total = input + output + cache || 1;
+export function TokenBars({
+  input,
+  cacheWrite,
+  cacheRead,
+  output,
+}: {
+  input: number;
+  cacheWrite: number;
+  cacheRead: number;
+  output: number;
+}) {
+  // Four disjoint parts: the API's input_tokens already excludes cache reads and writes.
+  const total = input + cacheWrite + cacheRead + output || 1;
   return (
     <div>
-      <Bar label="input" value={input} total={total} color="var(--accent)" />
-      <Bar label="output" value={output} total={total} color="var(--bar)" />
-      <Bar label="cache read" value={cache} total={total} color="var(--resolved)" />
+      <Bar label="Input (uncached)" value={input} total={total} color="var(--accent)" />
+      <Bar label="Cache write" value={cacheWrite} total={total} color="var(--pending)" />
+      <Bar label="Cache read" value={cacheRead} total={total} color="var(--resolved)" />
+      <Bar label="Output" value={output} total={total} color="var(--bar)" />
     </div>
   );
 }

@@ -240,6 +240,36 @@ describe("visitor tickets: privacy", () => {
     expect((await resetTicket(id, B.id)).ok).toBe(false);
   });
 
+  it("counts resolved by ticket status, like the inbox, and averages cost over agent-run tickets", async () => {
+    // Its own visitor, so this ticket doesn't use up A's per-visitor ticket allowance.
+    const D = { id: "00000000-0000-4000-8000-00000000000d", ipHash: "ip-d" };
+    await prisma.demoVisitor.upsert({ where: { id: D.id }, create: D, update: {} });
+    extraVisitors.push(D.id);
+    const id = await visitorTicket(D, "Resolved by D");
+    await prisma.ticket.update({ where: { id }, data: { status: "RESOLVED" } });
+    await prisma.llmCall.create({
+      data: {
+        ticketId: id, model: "claude-sonnet-5-5", inputTokens: 10, outputTokens: 5,
+        cacheReadTokens: 3000, cacheWriteTokens: 700, costUsd: 0.02, latencyMs: 3,
+      },
+    });
+
+    const forD = await dashboardStats({ all: false, visitorId: D.id });
+    const forB = await dashboardStats({ all: false, visitorId: B.id });
+    const inboxResolved = (await inboxRows(visibleTickets(D.id))).filter((r) => r.status === "RESOLVED").length;
+    expect(forD.resolvedCount).toBe(inboxResolved);
+    expect(forD.resolvedCount).toBe(forB.resolvedCount + 1);
+    expect(forD.resolvedWithRuns).toBe(forB.resolvedWithRuns + 1);
+    // Pins the denominator: D's total resolved spend is B's plus this ticket's $0.02.
+    expect(forD.avgCostPerResolved * forD.resolvedWithRuns).toBeCloseTo(
+      forB.avgCostPerResolved * forB.resolvedWithRuns + 0.02,
+      6,
+    );
+    // input_tokens excludes cached tokens, so cache writes must be summed separately.
+    expect(forD.cacheWriteTokens).toBeGreaterThanOrEqual(700);
+    expect(forD.cacheReadTokens).toBeGreaterThanOrEqual(3000);
+  });
+
   it("keeps the agent's tools from surfacing another visitor's ticket or guest", async () => {
     const maya = await prisma.customer.findUniqueOrThrow({ where: { email: "maya.chen@example.com" } });
     const mine = await visitorTicket(A, "Written as Maya", maya.id);

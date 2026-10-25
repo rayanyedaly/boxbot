@@ -1,6 +1,8 @@
 # BoxBot — support inbox agent
 
-[![CI](https://github.com/rayanyedaly/support-inbox-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/rayanyedaly/support-inbox-agent/actions/workflows/ci.yml)
+**Live demo: [web-production-e044a9.up.railway.app](https://web-production-e044a9.up.railway.app)** (no login; a 30-second tour shows you around)
+
+[![CI](https://github.com/rayanyedaly/boxbot/actions/workflows/ci.yml/badge.svg)](https://github.com/rayanyedaly/boxbot/actions/workflows/ci.yml)
 
 BoxBot is a single-workspace support / ops **inbox agent**. A human works a queue of support
 tickets; for a selected ticket, an AI agent reads the conversation, chains tools over the
@@ -52,6 +54,11 @@ Full report: [`evals/results/latest.md`](evals/results/latest.md)
 <!-- EVALS:END -->
 
 **Sonnet 4.6 vs Sonnet 5.5** (same prompts, tools and gold set; 3 trials each):
+
+The block above is rewritten by CI on every push to `main`, so it shows the latest CI run.
+The table below is the dedicated 3-trial run for each model
+([`sonnet55-dev.md`](evals/results/sonnet55-dev.md) for Sonnet 5.5). Same model and gold set,
+different runs: pass@1 moves a few points from run to run, inside each run's confidence interval.
 
 | | Sonnet 4.6 | Sonnet 5.5 |
 |---|---|---|
@@ -708,6 +715,8 @@ on `main`, a separate job with no `npm` and no repo scripts commits the refreshe
 ---
 
 ## Public demo (Railway)
+
+Live at **https://web-production-e044a9.up.railway.app**.
 
 The live demo runs on Railway, declared as code in [`railway/railway.ts`](railway/railway.ts)
 (Railway IaC; runbook in [`railway/README.md`](railway/README.md)): Postgres, the app built
