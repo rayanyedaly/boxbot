@@ -33,7 +33,7 @@ const OUTCOME: Record<InboxRow["outcome"], { label: string; token: string } | nu
 function matchesFilter(r: InboxRow, filter: string): boolean {
   if (filter === "needs-review") return r.hasDraft;
   if (filter === "escalated") return r.status === "ESCALATED";
-  if (filter === "resolved") return r.outcome === "sent";
+  if (filter === "resolved") return r.status === "RESOLVED";
   return true;
 }
 
@@ -51,7 +51,7 @@ export default async function InboxPage({
     all: rows.length,
     "needs-review": rows.filter((r) => r.hasDraft).length,
     escalated: rows.filter((r) => r.status === "ESCALATED").length,
-    resolved: rows.filter((r) => r.outcome === "sent").length,
+    resolved: rows.filter((r) => r.status === "RESOLVED").length,
   } as Record<string, number>;
   const openCount = rows.filter((r) => r.status === "OPEN").length;
   const list = rows.filter((r) => matchesFilter(r, filter));

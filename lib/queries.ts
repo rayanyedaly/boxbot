@@ -307,8 +307,11 @@ export interface DashboardStats {
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
+  cacheWriteTokens: number;
   totalTickets: number;
   resolvedCount: number;
+  /** Resolved tickets that have at least one logged model call (the avg's denominator). */
+  resolvedWithRuns: number;
   avgCostPerResolved: number;
   spendByDay: { day: string; spend: number }[];
   spendByModel: { model: string; spend: number; calls: number }[];
@@ -323,10 +326,11 @@ export interface DashboardStats {
 }
 
 /**
- * Whole-workspace cost stats for the dashboard. "Resolved" = a ticket that has an
- * approved (SENT) AI message — i.e. a human accepted the agent's draft. Avg cost per
- * resolved aggregates spend over the SET of resolved ticket ids (never total/count,
- * which would fold in unresolved tickets and ticketId-null calls).
+ * Whole-workspace cost stats for the dashboard. "Resolved" = ticket status RESOLVED,
+ * the same field the inbox badge, tabs and sidebar read. Avg cost per resolved is spend
+ * over the resolved tickets that have model calls, divided by how many of them there
+ * are (never total/count, which would fold in unresolved tickets, ticketId-null calls,
+ * and tickets a human resolved with no agent run).
  */
 export async function dashboardStats(visible: TicketVisibility = { all: true }): Promise<DashboardStats> {
   const visitorId = visible.all ? "" : (visible.visitorId ?? "");
@@ -334,16 +338,14 @@ export async function dashboardStats(visible: TicketVisibility = { all: true }):
     await Promise.all([
       prisma.llmCall.aggregate({ _sum: { costUsd: true }, _count: { _all: true } }),
       prisma.llmCall.aggregate({
-        _sum: { inputTokens: true, outputTokens: true, cacheReadTokens: true },
+        _sum: { inputTokens: true, outputTokens: true, cacheReadTokens: true, cacheWriteTokens: true },
       }),
-      prisma.message.findMany({
+      prisma.ticket.findMany({
         where: {
-          role: "AI",
-          status: "SENT",
-          ...(visible.all ? {} : { ticket: { OR: [{ visitorId: null }, { visitorId }] } }),
+          status: "RESOLVED",
+          ...(visible.all ? {} : { OR: [{ visitorId: null }, { visitorId }] }),
         },
-        select: { ticketId: true },
-        distinct: ["ticketId"],
+        select: { id: true },
       }),
       prisma.ticket.count({ where: visible.all ? {} : { OR: [{ visitorId: null }, { visitorId }] } }),
       // Bucket + format the day in SQL (to_char) so the label is UTC-deterministic and
@@ -352,7 +354,8 @@ export async function dashboardStats(visible: TicketVisibility = { all: true }):
       prisma.$queryRaw<{ day: string; spend: string }[]>`
         SELECT to_char(date_trunc('day', "createdAt"), 'YYYY-MM-DD') AS day,
                SUM("costUsd") AS spend
-        FROM "LlmCall" GROUP BY day ORDER BY day`,
+        FROM "LlmCall" WHERE "createdAt" >= date_trunc('day', now()) - interval '13 days'
+        GROUP BY day ORDER BY day`,
       prisma.$queryRaw<{ model: string; spend: string; calls: number }[]>`
         SELECT "model", SUM("costUsd") AS spend, COUNT(*)::int AS calls
         FROM "LlmCall" GROUP BY "model" ORDER BY spend DESC`,
@@ -367,17 +370,15 @@ export async function dashboardStats(visible: TicketVisibility = { all: true }):
       prisma.compaction.aggregate({ _sum: { tokensSaved: true }, _count: { _all: true } }),
     ]);
 
-  const resolvedIds = resolvedRows.map((r) => r.ticketId);
-  const resolvedCost = resolvedIds.length
-    ? decToNumber(
-        (
-          await prisma.llmCall.aggregate({
-            where: { ticketId: { in: resolvedIds } },
-            _sum: { costUsd: true },
-          })
-        )._sum.costUsd,
-      )
-    : 0;
+  const resolvedIds = resolvedRows.map((r) => r.id);
+  const resolvedSpend = resolvedIds.length
+    ? await prisma.llmCall.groupBy({
+        by: ["ticketId"],
+        where: { ticketId: { in: resolvedIds } },
+        _sum: { costUsd: true },
+      })
+    : [];
+  const resolvedCost = resolvedSpend.reduce((sum, r) => sum + decToNumber(r._sum.costUsd), 0);
 
   return {
     totalSpend: decToNumber(totals._sum.costUsd),
@@ -385,9 +386,11 @@ export async function dashboardStats(visible: TicketVisibility = { all: true }):
     inputTokens: tokens._sum.inputTokens ?? 0,
     outputTokens: tokens._sum.outputTokens ?? 0,
     cacheReadTokens: tokens._sum.cacheReadTokens ?? 0,
+    cacheWriteTokens: tokens._sum.cacheWriteTokens ?? 0,
     totalTickets,
     resolvedCount: resolvedIds.length,
-    avgCostPerResolved: resolvedIds.length ? resolvedCost / resolvedIds.length : 0,
+    resolvedWithRuns: resolvedSpend.length,
+    avgCostPerResolved: resolvedSpend.length ? resolvedCost / resolvedSpend.length : 0,
     spendByDay: spendRows.map((r) => ({ day: r.day, spend: decToNumber(r.spend) })),
     spendByModel: modelRows.map((r) => ({
       model: r.model,
